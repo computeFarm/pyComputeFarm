@@ -1,0 +1,111 @@
+#!/usr/bin/env python
+
+# Manage a collection of specialized task workers by assigning new tasks
+# in a simple round-robin fashion using one asyncio Queue for each
+# specialized task.
+
+# Echoing the results from the assigned worker back to the requester.
+
+import asyncio
+import json
+import yaml
+
+taskQueues = {}
+
+async def handleConnection(reader, writer) :
+  addr = writer.get_extra_info('peername')
+  print(f"Handling new connection from {addr!r}")
+
+  # read task type
+  taskJson = await reader.readuntil()
+  task = {}
+  if taskJson :
+    task = json.loads(taskJson.decode())
+
+  taskType = None
+  if 'taskType' in task :
+    taskType = task['taskType']
+
+  # ensure we have a usable taskType
+  if not taskType :
+    writer.write("Incorrect task request: missing taskType".encode())
+    await writer.drain()
+    writer.close()
+    await writer.wait_closed()
+    return
+
+  # IF task is a worker... place the reader/writer in a queue
+  if 'type' in task and task['type'] == 'worker' :
+    print(f"Got a new worker connection...")
+    if taskType not in taskQueues :
+      taskQueues[taskType] = asyncio.Queue()
+    print(f"Queing {taskType!r} worker")
+    await taskQueues[taskType].put({
+      'taskType' : taskType,
+      'addr'     : addr,
+      'reader'   : reader,
+      'writer'   : writer
+    })
+    print("Waiting for a new connection...")
+    return
+
+  # ELSE task is a request... get a worker and echo the results
+  if taskType not in taskQueues :
+    writer.write(
+      f"No specialist worker found for the task type: [{taskType}]".encode()
+    )
+    await writer.drain()
+    writer.close()
+    await writer.wait_closed()
+    return
+
+  while True :
+    taskWorker = await taskQueues[taskType].get()
+    taskQueues[taskType].task_done()
+
+    try :
+      workerAddr   = taskWorker['addr']
+      workerReader = taskWorker['reader']
+      workerWriter = taskWorker['writer']
+
+      # Send this worker our task request
+      workerWriter.write(taskJson)
+      await workerWriter.drain()
+      workerWriter.write(b"\n")
+      await workerWriter.drain()
+    except ConnectionResetError :
+      print("The assigned worker has died.... so we are trying the next")
+      continue
+    # We have found a live worker...
+    break
+
+  while not workerReader.at_eof() :
+    try :
+      data = await workerReader.readuntil()
+    except :
+      print(f"Worker {workerAddr!r} closed connection")
+      break
+
+    message = data.decode()
+    print(f"Received [{message!r}] from {workerAddr!r}")
+    print(f"Echoing: [{message!r}] to {addr!r}")
+    writer.write(message.encode())
+    await writer.drain()
+
+  print(f"Closing the connection to {addr!r}")
+  writer.close()
+  await writer.wait_closed()
+
+async def tcpTaskServer() :
+  server = await asyncio.start_server(
+    handleConnection, '127.0.0.1', 8888
+  )
+
+  addrs = ', '.join(str(sock.getsockname()) for sock in server.sockets)
+  print(f"TaskManager serving on {addrs}")
+
+  async with server :
+    await server.serve_forever()
+
+asyncio.run(tcpTaskServer())
+

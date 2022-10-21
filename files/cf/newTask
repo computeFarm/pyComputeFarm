@@ -1,0 +1,109 @@
+#!/usr/bin/env python
+
+# Request a new task and then echo the results as they come back...
+
+import asyncio
+import json
+import sys
+import yaml
+
+def usage() :
+  print('''
+usage: newTask [-h] [-e ENV] [-d DIR] [-t TIMEOUT]
+               -- workerType cmdWord [cmdWord ...]
+
+Request a new Task from the TaskManager
+
+positional arguments:
+  workerType              Worker type
+  cmdWord                 Command for the worker to do
+
+options:
+  --help                  Show this help message and exit
+  -h HOST, --host HOST    TaskManager's host
+  -p PORT, --port PORT    TaskManager's port
+  -e ENV,  --env ENV      Add a task environment variable
+  -d DIR,  --dir DIR      Task directory
+  -t TIME, --timeOut TIME Task time out in seconds
+  -l LOG,  --log LOG      Path to the log file
+  -v,      --verbose      Echo the complete task request
+  ''')
+  sys.exit(1)
+
+taskRequest = {
+  'progName' : "",
+  'host'     : "127.0.0.1",
+  'port'     : 8888,
+  'type'     : "taskRequest",
+  'taskType' : "unknown",
+  'cmd'      : [],
+  'env'      : {},
+  'dir'      : '',
+  'timeOut'  : 100,
+  'logPath'  : 'stdout',
+  'verbose'  : False
+}
+
+taskRequest['progName'] = sys.argv.pop(0)
+if len(sys.argv) < 1 : usage()
+while sys.argv[0] != '--' :
+  anArg = sys.argv.pop(0)
+  if anArg == "-e" or anArg == "--env" :
+    anEnvTuple = sys.argv.pop(0).split('=')
+    if len(anEnvTuple) != 2 :
+      print("Environment variable arguments MUST be of the form:")
+      print("  NAME=value")
+      usage()
+    taskRequest['env'][anEnvTuple[0]] = anEnvTuple[1]
+  elif anArg == "-d" or anArg == "--dir" :
+    taskRequest['dir'] = sys.argv.pop(0)
+  elif anArg == "-t" or anArg.lower() == "--timeout" :
+    taskRequest['timeOut'] = int(sys.argv.pop(0))
+  elif anArg == "-h" or anArg == "--host" :
+    taskRequest['host'] = sys.argv.pop(0)
+  elif anArg == "-p" or anArg == "--port" :
+    taskRequest['port'] = int(sys.argv.pop(0))
+  elif anArg == "-v" or anArg == "--verbose" :
+    taskRequest['verbose'] = True
+  elif anArg == "--help" :
+    usage()
+  else :
+    print(f"Not expecting: [{anArg}]")
+    usage()
+sys.argv.pop(0)
+taskRequest['taskType'] = sys.argv.pop(0)
+while 0 < len(sys.argv) :
+  anArg = sys.argv.pop(0)
+  taskRequest['cmd'].append(anArg)
+
+print(f"Task type: {taskRequest['taskType']}")
+if taskRequest['verbose'] :
+  print("Task Request:\n---")
+  print(yaml.dump(taskRequest))
+  print("---")
+
+async def tcpTaskRequest(taskRequest) :
+  reader, writer = await asyncio.open_connection(
+    taskRequest['host'],
+    taskRequest['port']
+  )
+
+  # send task request
+
+  writer.write(json.dumps(taskRequest).encode())
+  await writer.drain()
+  writer.write(b"\n")
+  await writer.drain()
+
+  # echo any results
+
+  while not reader.at_eof() :
+    print("Reading...")
+    data = await reader.read(100)
+    print(f'Received: [{data.decode()!r}]')
+
+  print("Closing the connection")
+  writer.close()
+  await writer.wait_closed()
+
+asyncio.run(tcpTaskRequest(taskRequest))
