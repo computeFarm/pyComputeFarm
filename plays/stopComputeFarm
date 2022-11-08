@@ -1,0 +1,16 @@
+---
+# This playbook STOPS a compute farm
+
+
+- name: Stop the taskManager server
+  hosts: guiServer
+  connection: local
+  roles:
+    - taskManager
+
+- name: Stop the cutelogActions server
+  hosts: guiServer
+  connection: local
+  roles:
+    - cutelogActions
+
