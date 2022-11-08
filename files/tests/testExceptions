@@ -1,9 +1,0 @@
-#!/usr/bin/env python
-
-import time
-
-while True :
-  print("looping...")
-  time.sleep(5)
-  raise Exception("Exception in loop!")
-

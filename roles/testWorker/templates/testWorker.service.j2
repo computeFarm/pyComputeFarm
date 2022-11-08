@@ -1,0 +1,10 @@
+[Unit]
+Description=Start a compute farm testWorker
+
+[Service]
+WorkingDirectory=/tmp/pyComputeFarm/bin
+ExecStart={{ ansible_facts.user_dir }}/.local/pyComputeFarm/bin/worker {{ ansible_facts.user_dir }}/.local/pyComputeFarm/config/runnerConfig-{{item}}.yaml
+Restart=always
+
+[Install]
+WantedBy=default.target

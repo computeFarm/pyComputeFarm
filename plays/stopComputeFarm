@@ -1,6 +1,11 @@
 ---
 # This playbook STOPS a compute farm
 
+- name: Load the user's ssh credentials into an ssh-agent
+  hosts: all
+  connection: local
+  tasks:
+    - import_tasks: loadSshKey
 
 - name: Stop the taskManager server
   hosts: guiServer

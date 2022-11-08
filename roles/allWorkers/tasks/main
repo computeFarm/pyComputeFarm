@@ -1,0 +1,24 @@
+---
+
+# Install the worker script
+
+- name: Setup user's systemd
+  file:
+    path: "{{ ansible_facts.user_dir }}/.config/systemd/user"
+    state: directory
+
+- name: Create user's pyComputeFarm bin and config directories
+  file:
+    path: "{{ ansible_facts.user_dir}}/.local/pyComputeFarm/{{ item }}"
+    state: directory
+  with_items:
+    - bin
+    - config
+
+- name: Install user's worker script
+  template:
+    src: "{{ item }}.j2"
+    dest: "{{ ansible_facts.user_dir}}/.local/pyComputeFarm/bin/{{ item }}"
+    mode: u=rwx,g=rx,o=rx
+  with_items:
+    - worker

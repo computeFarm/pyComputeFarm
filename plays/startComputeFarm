@@ -1,18 +1,38 @@
 ---
 # This playbook STARTS a compute farm
 
-- name: Start cutelogActions server
-  hosts: guiServer
-  connection: local
-  vars:
-    startComputeFarm: yes
-  roles:
-    - cutelogActions
+#- name: Start cutelogActions server
+#  hosts: guiServer
+#  connection: local
+#  vars:
+#    startComputeFarm: yes
+#  roles:
+#    - cutelogActions
 
-- name: Start taskManager server
-  hosts: guiServer
+#- name: Start taskManager server
+#  hosts: guiServer
+#  connection: local
+#  vars:
+#    startComputeFarm: yes
+#  roles:
+#    - taskManager
+
+- name: Load the user's ssh credentials into an ssh-agent
+  hosts: all
   connection: local
+  tasks:
+    - import_tasks: loadSshKey
+
+- name: Install worker script
+  hosts: all
   vars:
     startComputeFarm: yes
   roles:
-    - taskManager
+    - allWorkers
+
+- name: Install testWorkers
+  hosts: all
+  vars:
+    startComputeFarm: yes
+  roles:
+    - testWorker

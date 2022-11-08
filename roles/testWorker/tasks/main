@@ -1,0 +1,12 @@
+---
+
+# This Ansible tasks file describes how to setup a testWorker
+
+- name: Create the runner working directories
+  file:
+    path: /tmp/pyComputeFarm/bin
+    state: directory
+
+- name: install multiple testWorkers
+  include_tasks: repeatBlock
+  loop: "{{ testWorkerList }}"

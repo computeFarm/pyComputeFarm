@@ -1,0 +1,8 @@
+---
+# This task adds the SSH-user's ssh key to the local ssh key agent
+
+- name: add user's ssh key to local agent
+  ansible.builtin.expect:
+    command: "ssh-add -t 30m {{ ansible_facts['env']['HOME']}}/.ssh/{{ ssh_key }}"
+    responses:
+      'Enter passphrase for ' : "{{ vault_ssh_pass }}"

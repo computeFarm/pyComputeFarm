@@ -29,7 +29,16 @@ following tasks:
 The `group_vars` and or `host_vars` directories must contain the following
 variables:
 
-- systemPython
+- `systemPython` provides the name to be used by `/usr/bin/env` to find
+                 the required python interpreter.
+
+- `ssh_key` provides a path relative to the user's $HOME/.ssh directory to
+            the key to be added to the local ssh agent.
+
+- `vault_ssh_pass` provides the user's password required to use the
+                  `ssh_key` specified above. Typically this password will
+                  be found in the `group_vars/all/vautl` file and will
+                  encrypted using ansible-vault.
 
 ## Usage
 

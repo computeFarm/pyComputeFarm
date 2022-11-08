@@ -1,14 +1,14 @@
-# This is the task worker description of the runner command
+# This is the task worker description of the {{ item }} runner command
 
 # How to contact the TaskManager
 #taskManager:
 #  host: localhost
 #  port: 8888
 
-workerType: runner
+workerType: runner-{{item}}
 
 cmd:
-  prefix: ./runner
+  prefix: ./runner-{{item}}
 
 # env:
 #  silly: sillier
