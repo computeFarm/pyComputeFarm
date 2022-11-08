@@ -2,7 +2,6 @@
 hosts
 group_vars
 host_vars
-tasks
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
