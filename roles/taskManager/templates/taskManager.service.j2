@@ -2,7 +2,7 @@
 Description=Start user's local compute farm taskManager
 
 [Service]
-ExecStart={{ ansible_facts.user_dir }}/.local/pyComputeFarm/bin/taskManager
+ExecStart={{ ansible_facts.user_dir }}/.local/pyComputeFarm/bin/taskManager {{ ansible_facts.user_dir }}/.local/pyComputeFarm/config/taskManager.yaml
 Restart=always
 
 [Install]

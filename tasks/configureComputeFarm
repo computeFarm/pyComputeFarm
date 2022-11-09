@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# This bash script uses ansible to START the configured compute farm
+
+reset
+
+mkdir -p logs
+
+ansible-playbook $* plays/configureComputeFarm --ask-vault-pass

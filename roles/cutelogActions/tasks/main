@@ -8,31 +8,8 @@
     path: "{{ ansible_facts.user_dir }}/.config/systemd/user"
     state: directory
 
-###################################################################
-# setup cutelogActions service
-
 - name: Install user's cutelogActions service
   template:
     src: cutelogActions.service.j2
     dest: "{{ ansible_facts.user_dir }}/.config/systemd/user/cutelogActions.service"
     mode: u=rw,g=r,o=r
-
-- name: Start cutelogActions service
-  when: startComputeFarm is defined
-  systemd:
-    state: started
-    daemon_reload: yes
-    enabled: yes
-    masked: no
-    scope: user
-    name: cutelogActions
-
-- name: Stop cutelogActions service
-  when: startComputeFarm is undefined
-  systemd:
-    state: stopped
-    daemon_reload: yes
-    enabled: no
-    masked: no
-    scope: user
-    name: cutelogActions

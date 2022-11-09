@@ -11,10 +11,13 @@
 ###################################################################
 # setup taskManager
 
-- name: Create user's pyComputeFarm bin directory
+- name: Create user's pyComputeFarm bin and config directories
   file:
-    path: "{{ ansible_facts.user_dir}}/.local/pyComputeFarm/bin"
+    path: "{{ ansible_facts.user_dir}}/.local/pyComputeFarm/{{item}}"
     state: directory
+  with_items:
+    - bin
+    - config
 
 - name: Install user's taskManager and newTask scripts
   template:
@@ -25,28 +28,16 @@
     - taskManager
     - newTask
 
+- name: Install user's taskManager and newTask config
+  template:
+    src: "{{ item }}.j2"
+    dest: "{{ ansible_facts.user_dir}}/.local/pyComputeFarm/config/{{ item }}"
+    mode: u=rwx,g=rx,o=rx
+  with_items:
+    - taskManager.yaml
+
 - name: Install user's taskManager service
   template:
     src: taskManager.service.j2
     dest: "{{ ansible_facts.user_dir }}/.config/systemd/user/taskManager.service"
     mode: u=rw,g-r,o=r
-
-- name: Start taskManager service
-  when: startComputeFarm is defined
-  systemd:
-    state: started
-    daemon_reload: yes
-    enabled: yes
-    masked: no
-    scope: user
-    name: taskManager
-
-- name: Stop taskManager service
-  when: startComputeFarm is undefined
-  systemd:
-    state: stopped
-    daemon_reload: yes
-    enabled: no
-    masked: no
-    scope: user
-    name: taskManager

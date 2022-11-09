@@ -2,16 +2,22 @@
 
 # This Ansible tasks file describes how to setup a testWorker
 
-- name: Install the runner scripts
+- name: Install the runnerLogParser scripts
   template:
-    src: runner.j2
-    dest: "/tmp/pyComputeFarm/bin/runner-{{item}}"
+    src: runnerLogParser.py.j2
+    dest: "{{ ansible_facts.user_dir }}/.local/pyComputeFarm/lib/runnerLogParser-{{item}}.py"
     mode: u=rwx,g=rx,o=rx
 
 - name: Install the runner scripts
   template:
+    src: runner.j2
+    dest: "{{ ansible_facts.user_dir }}/.local/pyComputeFarm/tmp/runner-{{item}}"
+    mode: u=rwx,g=rx,o=rx
+
+- name: Install the testExceptions scripts
+  template:
     src: testExceptions.j2
-    dest: "/tmp/pyComputeFarm/bin/testExceptions-{{item}}"
+    dest: "{{ ansible_facts.user_dir }}/.local/pyComputeFarm/tmp/testExceptions-{{item}}"
     mode: u=rwx,g=rx,o=rx
 
 - name: Install the testWorker configuration
@@ -23,5 +29,5 @@
 - name: Install the testWorker service
   template:
     src: testWorker.service.j2
-    dest: "{{ ansible_facts.user_dir }}/.config/systemd/user/{{item}}.service"
+    dest: "{{ ansible_facts.user_dir }}/.config/systemd/user/{{ item }}.service"
     mode: u=rw,g=r,o=r

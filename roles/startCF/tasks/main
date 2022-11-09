@@ -1,0 +1,32 @@
+---
+
+# Start the compute farm
+
+- name: Start cutelogActions service
+  when: inventory_hostname == 'localhost'
+  systemd:
+    state: started
+    daemon_reload: yes
+    enabled: yes
+    masked: no
+    scope: user
+    name: cutelogActions
+
+- name: Start taskManager service
+  when: inventory_hostname == 'localhost'
+  systemd:
+    state: started
+    daemon_reload: yes
+    enabled: yes
+    masked: no
+    scope: user
+    name: taskManager
+
+- name: Start testWorker services
+  systemd:
+    state: started
+    daemon_reload: yes
+    enabled: yes
+    masked: no
+    scope: user
+    name: testWorker.target

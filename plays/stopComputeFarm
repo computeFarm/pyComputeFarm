@@ -1,21 +1,14 @@
 ---
 # This playbook STOPS a compute farm
 
-- name: Load the user's ssh credentials into an ssh-agent
-  hosts: all
-  connection: local
-  tasks:
-    - import_tasks: loadSshKey
+- name: Stop the compute farm on the remote servers first
+  hosts: all:!localhost
+  roles:
+    - stopCF
 
-- name: Stop the taskManager server
-  hosts: guiServer
+- name: Now stop the compute farm on the local server
+  hosts: localhost
   connection: local
   roles:
-    - taskManager
-
-- name: Stop the cutelogActions server
-  hosts: guiServer
-  connection: local
-  roles:
-    - cutelogActions
+    - stopCF
 
