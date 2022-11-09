@@ -8,13 +8,113 @@
 
 import asyncio
 import json
+import signal
+import sys
+import time
+import traceback
 import yaml
+
+def usage() :
+  print('''
+usage: taskManager [configFile]
+
+optional positional argument:
+  configFile A path to this taskManager's YAML configuration file
+             (default: ./taskManager.yaml)
+
+options:
+  -h, --help Show this help message and exit
+  ''')
+  sys.exit(0)
+
+for anArg in sys.argv :
+  if anArg == '-h' or anArg == '--help' :
+    usage()
+
+configFile = "taskManager.yaml"
+if 1 < len(sys.argv) :
+  configFile = sys.argv[1]
+
+config = {}
+try :
+  with open(configFile) as yamlFile :
+    config = yaml.safe_load(yamlFile.read())
+except FileNotFoundError :
+  print(f"Could not load the {configFile}")
+  sys.exit(1)
+
+if 'taskManager' not in config :
+  config['taskManager'] = {}
+taskManager = config['taskManager']
+if 'interface' not in taskManager :
+  taskManager['interface'] = "0.0.0.0"
+if 'port' not in taskManager :
+  taskManager['port'] = 8888
+
+cutelogActionsHost = None
+cutelogActionsPort = None
+if 'cutelogActions' in config :
+  cutelogActions = config['cutelogActions']
+  if 'host' not in cutelogActions :
+    cutelogActions['host'] = "localhost"
+  if 'port' not in cutelogActions :
+    cutelogActions['port'] = 19996
+  cutelogActionsHost = cutelogActions['host']
+  cutelogActionsPort = cutelogActions['port']
+
+cutelogActionsWriter = None
+
+async def openCutelog(cuteLogActionsHost, cutelogActionsPort) :
+  global cutelogActionsWriter
+  if cutelogActionsHost and cutelogActionsPort :
+    try :
+      cutelogActionsReader, cutelogActionsWriter = await asyncio.open_connection(
+      	cutelogActionsHost, int(cutelogActionsPort)
+      )
+    except :
+      cutelogActionsWriter = None
+
+async def cutelog(jsonLog) :
+  if not cutelogActionsWriter :
+    if isinstance(jsonLog, str) :
+      print("+++++++++++++++++++++++")
+      print(jsonLog)
+      print("-----------------------")
+    else :
+      print(">>>>>>>>>>>>>>>>>>>>>>>")
+      print(yaml.dump(jsonLog))
+      print("<<<<<<<<<<<<<<<<<<<<<<<")
+    return
+
+  if isinstance(jsonLog, dict) :
+    jsonLog = json.dumps(jsonLog)
+
+  if isinstance(jsonLog, str) :
+    jsonLog = jsonLog.encode()
+
+  cutelogActionsWriter.write(len(jsonLog).to_bytes(4,'big'))
+  cutelogActionsWriter.write(jsonLog)
+  await cutelogActionsWriter.drain()
+
+async def cutelogLog(level, msg) :
+  await cutelog({
+    'time'  : time.time(),
+    'name'  : 'taskManager',
+    'level' : level,
+    'msg'   : msg
+  })
+
+async def cutelogInfo(msg) :
+  await cutelogLog('info', msg)
+
+async def cutelogDebug(msg) :
+  await cutelogLog('debug', msg)
 
 taskQueues = {}
 
 async def handleConnection(reader, writer) :
   addr = writer.get_extra_info('peername')
-  print(f"Handling new connection from {addr!r}")
+  await cutelogInfo(f"Handling new connection from {addr!r}")
 
   # read task type
   taskJson = await reader.readuntil()
@@ -28,6 +128,7 @@ async def handleConnection(reader, writer) :
 
   # ensure we have a usable taskType
   if not taskType :
+    cutelogDebug("Incorrect task request: missing taskType")
     writer.write("Incorrect task request: missing taskType".encode())
     await writer.drain()
     writer.close()
@@ -36,21 +137,22 @@ async def handleConnection(reader, writer) :
 
   # IF task is a worker... place the reader/writer in a queue
   if 'type' in task and task['type'] == 'worker' :
-    print(f"Got a new worker connection...")
+    await cutelogInfo(f"Got a new worker connection...")
     if taskType not in taskQueues :
       taskQueues[taskType] = asyncio.Queue()
-    print(f"Queing {taskType!r} worker")
+    await cutelogInfo(f"Queing {taskType!r} worker")
     await taskQueues[taskType].put({
       'taskType' : taskType,
       'addr'     : addr,
       'reader'   : reader,
       'writer'   : writer
     })
-    print("Waiting for a new connection...")
+    await cutelogInfo("Waiting for a new connection...")
     return
 
   # ELSE task is a request... get a worker and echo the results
   if taskType not in taskQueues :
+    cutelogDebug(f"No specialist worker found for the task type: [{taskType}]")
     writer.write(
       f"No specialist worker found for the task type: [{taskType}]".encode()
     )
@@ -74,7 +176,7 @@ async def handleConnection(reader, writer) :
       workerWriter.write(b"\n")
       await workerWriter.drain()
     except ConnectionResetError :
-      print("The assigned worker has died.... so we are trying the next")
+      await cutelogInfo("The assigned worker has died.... so we are trying the next")
       continue
     # We have found a live worker...
     break
@@ -83,29 +185,58 @@ async def handleConnection(reader, writer) :
     try :
       data = await workerReader.readuntil()
     except :
-      print(f"Worker {workerAddr!r} closed connection")
+      await cutelogInfo(f"Worker {workerAddr!r} closed connection")
       break
 
     message = data.decode()
-    print(f"Received [{message!r}] from {workerAddr!r}")
-    print(f"Echoing: [{message!r}] to {addr!r}")
-    writer.write(message.encode())
-    await writer.drain()
+    await cutelogDebug(f"Received [{message!r}] from {workerAddr!r}")
+    await cutelogDebug(f"Echoing: [{message!r}] to {addr!r}")
+    await cutelog(message)
+    if 'returncode' in message :
+      writer.write(data)
+      #writer.write(b"\n")
+      await writer.drain()
 
-  print(f"Closing the connection to {addr!r}")
+  await cutelogInfo(f"Closing the connection to {addr!r}")
   writer.close()
   await writer.wait_closed()
 
 async def tcpTaskServer() :
+  await openCutelog(cutelogActionsHost, cutelogActionsPort)
+
+  if not cutelogActionsWriter :
+    print(f"Could not open connection to cutelogActions at ({cutelogActionsHost}, {cutelogActionsPort}) ")
+
+  loop = asyncio.get_event_loop()
+
+  def signalHandler(signame) :
+    print("")
+    print(f"SignalHandler: caught signal {signame}")
+    if cutelogActionsWriter :
+      print("Closing connection to cutelogActions")
+      cutelogActionsWriter.close()
+    print("Sutting down")
+    loop.stop()
+
+  signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
+  for s in signals:
+    loop.add_signal_handler(s, signalHandler, s.name)
+
   server = await asyncio.start_server(
-    handleConnection, '127.0.0.1', 8888
+    handleConnection, taskManager['interface'], taskManager['port']
   )
 
   addrs = ', '.join(str(sock.getsockname()) for sock in server.sockets)
   print(f"TaskManager serving on {addrs}")
+  await cutelogInfo(f"TaskManager serving on {addrs}")
 
   async with server :
     await server.serve_forever()
 
-asyncio.run(tcpTaskServer())
+try :
+  asyncio.run(tcpTaskServer())
+except :
+  pass
+  #print("Caught and ignored exception")
+  #print(traceback.format_exc())
 

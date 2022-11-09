@@ -4,10 +4,15 @@
 # the output back to the requester.
 
 import asyncio
+import importlib
 import json
 import os
 import sys
+import time
+import traceback
 import yaml
+
+sys.path.append(os.path.expanduser('~/.local/pyComputeFarm/lib'))
 
 def usage() :
   print('''
@@ -26,6 +31,9 @@ options:
 for anArg in sys.argv :
   if anArg == '-h' or anArg == '--help' :
     usage()
+
+if len(sys.argv) < 2 :
+  usage()
 
 configFile = "workerConfig.yaml"
 if 1 < len(sys.argv) :
@@ -50,6 +58,28 @@ if 'host' not in taskManager :
   taskManager['host'] = 'localhost'
 if 'port' not in taskManager :
   taskManager['port'] = 8888
+
+def defaultLogParser(logName, logMsg) :
+  return {
+    'time'  : time.time(),
+    'name'  : logName,
+    'level' : 'info',
+    'msg'   : logMsg
+  }
+
+logParserFunc = None
+if 'logParser' in config :
+  try :
+    thePlugin = importlib.import_module(config['logParser'])
+    if thePlugin and hasattr(thePlugin, 'logParser') :
+      print(f"Using logParser loaded from {config['logParser']}")
+      logParserFunc = thePlugin.logParser
+  except Exception :
+    print(f"Could not load logParser from [{config['logParser']}]")
+    print(traceback.format_exc())
+if not logParserFunc :
+  print("Using the default logParser")
+  logParserFunc = defaultLogParser
 
 if 'cmd' not in config :
   config['cmd'] = {}
@@ -78,10 +108,21 @@ if type(config['env']) is not dict :
   print("The env MUST be a dictionary")
   sys.exit(1)
 
+if 'workerName' not in config :
+  config['workerName'] = config['workerType']
+
 if 'verbose' in config :
   print("Worker configuration:\n---")
   print(yaml.dump(config))
   print("---")
+
+async def jsonLog(writer, aLogDict) :
+  if 'time'  not in aLogDict : aLogDict['time']  = time.time()
+  if 'level' not in aLogDict : aLogDict['level'] = 'info'
+  writer.write(json.dumps(aLogDict).encode())
+  await writer.drain()
+  writer.write(b'\n')
+  await writer.drain()
 
 async def tcpWorker(config) :
   workerType = config['workerType']
@@ -95,7 +136,7 @@ async def tcpWorker(config) :
   # send task specialty
   print("Sending task description to taskManager")
   writer.write(json.dumps({
-    'type' : 'worker',
+    'type'     : 'worker',
     'taskType' : workerType
   }).encode())
   await writer.drain()
@@ -110,6 +151,8 @@ async def tcpWorker(config) :
     taskRequest = json.loads(taskRequestJson.decode())
 
   if 'type' in taskRequest and taskRequest['type'] == 'taskRequest' :
+    if 'taskName' not in taskRequest :
+      taskRequest['taskName'] = config['workerName']
     if 'verbose' in config :
       print("\nTask request:\n---")
       print(yaml.dump(taskRequest))
@@ -165,19 +208,19 @@ async def tcpWorker(config) :
     procStdOut = proc.stdout
     while not procStdOut.at_eof() :
       aLine = await procStdOut.readline()
-      print(f'Sending: [{aLine.decode()}]')
-      writer.write(aLine)
-      await writer.drain()
-      #writer.write(b'\n')
-      #await writer.drain()
-    print(f"Finished task for [{workerType}]")
+      aLine = aLine.decode().strip()
+      #print(f'Sending: [{aLine}]')
+      await jsonLog(writer, logParserFunc(taskRequest['taskName'], aLine))
+    await proc.wait()
+    print(f"Finished task for [{workerType}] returncode = {proc.returncode}")
+    await jsonLog(writer, {
+      'name'       : taskRequest['taskName'],
+      'msg'        : f"Task competed: {proc.returncode}",
+      'returncode' : proc.returncode
+    })
 
   print("Closing the connection")
   writer.close()
   await writer.wait_closed()
-
-if len(sys.argv) < 2 :
-  print("Usage: worker <<wokerType>>")
-  sys.exit(1)
 
 asyncio.run(tcpWorker(config))

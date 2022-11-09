@@ -10,11 +10,16 @@ import yaml
 def usage() :
   print('''
 usage: newTask [-h] [-e ENV] [-d DIR] [-t TIMEOUT]
-               -- workerType cmdWord [cmdWord ...]
+               -- taskName workerType [cmdWord ...]
 
 Request a new Task from the TaskManager
 
 positional arguments:
+
+  taskName                A dot seperated "Name" used by
+                          cutelogActions to categorize
+                          any log information comming from
+                          this task
   workerType              Worker type
   cmdWord                 Command for the worker to do
 
@@ -35,6 +40,7 @@ taskRequest = {
   'host'     : "127.0.0.1",
   'port'     : 8888,
   'type'     : "taskRequest",
+  'taskName' : "unknown",
   'taskType' : "unknown",
   'cmd'      : [],
   'env'      : {},
@@ -71,16 +77,27 @@ while sys.argv[0] != '--' :
     print(f"Not expecting: [{anArg}]")
     usage()
 sys.argv.pop(0)
+if len(sys.argv) < 2 :
+  print("Missing taskName and workerType")
+  usage()
+taskRequest['taskName'] = sys.argv.pop(0)
 taskRequest['taskType'] = sys.argv.pop(0)
 while 0 < len(sys.argv) :
   anArg = sys.argv.pop(0)
   taskRequest['cmd'].append(anArg)
 
+print(f"Task name: {taskRequest['taskName']}")
 print(f"Task type: {taskRequest['taskType']}")
 if taskRequest['verbose'] :
   print("Task Request:\n---")
   print(yaml.dump(taskRequest))
   print("---")
+
+workerReturnCode = None
+def setWorkerReturnCode(aCode) :
+  global workerReturnCode
+  workerReturnCode = int(aCode)
+  print(workerReturnCode)
 
 async def tcpTaskRequest(taskRequest) :
   reader, writer = await asyncio.open_connection(
@@ -97,13 +114,27 @@ async def tcpTaskRequest(taskRequest) :
 
   # echo any results
 
-  while not reader.at_eof() :
+  moreToRead = True
+  while moreToRead :
     print("Reading...")
-    data = await reader.read(100)
-    print(f'Received: [{data.decode()!r}]')
+    data = await reader.readuntil()
+    aLine = data.decode().strip()
+    # print(f'Received: [{aLine}]')
+    if 'returncode' in aLine :
+      workerJson = json.loads(aLine)
+      if 'returncode' in workerJson :
+        setWorkerReturnCode(workerJson['returncode'])
+      if 'msg' in workerJson :
+        print(workerJson['msg'])
+      moreToRead = False
+    if reader.at_eof()       : moreToRead = False
 
   print("Closing the connection")
   writer.close()
   await writer.wait_closed()
 
 asyncio.run(tcpTaskRequest(taskRequest))
+
+if workerReturnCode is None : workerReturnCode = 1
+print(f"Return code: {workerReturnCode}")
+sys.exit(workerReturnCode)
