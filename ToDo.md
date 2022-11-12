@@ -10,6 +10,16 @@
 
 1. Add host/port command line arguments
 
+2. Add fast finger printing of files to check if they actually need to be
+   rebuilt. See:
+
+   - https://github.com/hajimes/mmh3
+   - https://github.com/wc-duck/pymmh3
+   - https://pypi.org/project/mmh3/
+   - https://pypi.org/project/murmurhash3/
+   - https://github.com/aappleby/smhasher
+   - https://github.com/ninja-build/ninja/issues/1459
+
 ## TaskManager
 
 ?
