@@ -19,9 +19,21 @@
     - bin
     - config
 
+- name: Get the hashCheck.c code to compile it
+  copy:
+    src: hashCheck.c
+    dest: /tmp/hashCheck.c
+    mode: u=r,g=r,o=r
+
+- name: compile the hashCheck.c code
+  command:
+    cmd: gcc -o hashCheck /tmp/hashCheck.c -lcrypto
+    chdir: "{{ ansible_facts.user_dir}}/.local/pyComputeFarm/bin"
+    creates: "{{ ansible_facts.user_dir}}/.local/pyComputeFarm/bin/hashCheck"
+
 - name: Install user's taskManager and newTask scripts
-  template:
-    src: "{{ item }}.j2"
+  copy:
+    src: "{{ item }}"
     dest: "{{ ansible_facts.user_dir}}/.local/pyComputeFarm/bin/{{ item }}"
     mode: u=rwx,g=rx,o=rx
   with_items:

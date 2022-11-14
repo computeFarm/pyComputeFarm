@@ -29,9 +29,6 @@ following tasks:
 The `group_vars` and or `host_vars` directories must contain the following
 variables:
 
-- `systemPython` provides the name to be used by `/usr/bin/env` to find
-                 the required python interpreter.
-
 - `ssh_key` provides a path relative to the user's $HOME/.ssh directory to
             the key to be added to the local ssh agent.
 
@@ -52,4 +49,30 @@ To *stop* a compute farm type:
 
 ```
 ./tasks/stopComputeFarm
+```
+## Requirements
+
+We explicitly use the *system* python / pip and assume that the pypi mmh3
+package has been installed to the *system*.
+
+To do this on ubuntu type:
+
+```
+sudo apt install python-is-python3 python3-pip
+```
+
+The `hashCheck` tool compiled on the local host by the `taskManager` role,
+*requires* that the development version of the
+[OpenSSL](https://www.openssl.org/) `crypto` library is installed. To
+ensure this type:
+
+```
+sudo apt install libssl-dev
+```
+
+To do this compilation, we also need the `gcc` compiler installed. To
+install this type:
+
+```
+sudo apt install gcc
 ```

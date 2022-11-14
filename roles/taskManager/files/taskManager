@@ -1,4 +1,4 @@
-#!/usr/bin/env {{ systemPython }}
+#!/usr/bin/python
 
 # Manage a collection of specialized task workers by assigning new tasks
 # in a simple round-robin fashion using one asyncio Queue for each

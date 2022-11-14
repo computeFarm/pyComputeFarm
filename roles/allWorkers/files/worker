@@ -1,4 +1,4 @@
-#!/usr/bin/env {{ systemPython }}
+#!/usr/bin/python
 
 # TODO: echo taskRequest back to taskMaster and cutelogActions
 
