@@ -1,3 +1,6 @@
+tmp
+
+
 # DO NOT version control the "local" Ansible configuration files
 hosts
 group_vars
