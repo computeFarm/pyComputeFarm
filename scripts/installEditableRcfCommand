@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# This bash script uses the current working directory to create a simple
+# script to run the rcf command anywhere in a user's workspace.
+
+cmdScript=$(pwd)/.venv/bin/rcf
+
+cat << CMD_SCRIPT > $HOME/.local/bin/rcf
+#!/bin/sh
+
+# This shell script was created by the ConTeXt2ninja tool
+#       './scripts/installEditableRcfCommand'
+# script.
+
+exec $cmdScript \$@
+CMD_SCRIPT
+
+chmod a+x $HOME/.local/bin/rcf
+
+echo ""
+echo "Editable rcf command has been created"
+echo ""
