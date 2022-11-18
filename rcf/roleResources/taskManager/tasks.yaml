@@ -1,11 +1,12 @@
 targetDirs:
   - "{sysHome}"
   - "{pcfHome}/bin"
+  - "{pcfHome}/tmp"
   - "{pcfHome}/config"
 
 files:
   - src: hashCheck.c
-    dest: /tmp/hashCheck.c
+    dest: "{pcfHome}/tmp/hashCheck.c"
     mode: 0644
   - src: taskManager
     dest: "{pcfHome}/bin/taskManger"
@@ -22,6 +23,7 @@ files:
   - src: cutelogActions.service.j2
     dest: "{sysHome}/cutelogActions.service"
 
-command:
-  cmd: gcc -o hashCheck /tmp/hashChect.c -lcrypto
-  chdir: "{pcfHome}/bin"
+commands:
+  - name: hashCheck
+    cmd: gcc -o hashCheck /tmp/hashChect.c -lcrypto
+    chdir: "{pcfHome}/bin"

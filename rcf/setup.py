@@ -1,31 +1,95 @@
 
 import click
+import importlib.resources
+import jinja2
 from pathlib import Path
+import platform
 import sys
 import tempfile
 import yaml
 
 import rcf.config
-import rcf.roles
+
+def loadResourceFor(aRole, aResource) :
+  if aRole :
+    contents = importlib.resources.read_text('rcf.roleResources.'+aRole, aResource)
+  else :
+    contents = importlib.resources.read_text('rcf.roleResources', aResource)
+  return contents
+
+def loadTasksFor(aRole=None) :
+  taskYaml = loadResourceFor(aRole, 'tasks.yaml')
+  return yaml.safe_load(taskYaml)
+
+def mergeVars(oldVars, newVars) :
+  for aKey, aValue in newVars.items() :
+    oldVars[aKey] = aValue.format(oldVars)
+
+def copyFile(fileContents, toPath) :
+  with open(toPath, 'w') as toFile :
+    toFile.write(fileContents)
+
+def jinjaFile(fromTemplate, toPath, config, secrets) :
+  env = {}
+  rcf.config.mergeYamlData(env, config,  '.')
+  rcf.config.mergeYamlData(env, secrets, '.')
+  try:
+    template = jinja2.Template(fromTemplate)
+    fileContents = template.render(env)
+    with open(toPath, 'w') as toFile :
+      toFile.write(fileContents)
+  except Exception as err:
+    print(f"Could not render the Jinja2 template")
+    print(err)
+    print("==========================================================")
+    print(fromTemplate)
+    print("==========================================================")
+    print(yaml.dump(env))
+    print("==========================================================")
+
+def createRunCommandFor(aRole, rCmds, rVars, aDir, config, secrets) :
+  cmdTemplate = """#!/bin/sh
+
+  {% for aCmd in rCmds %}
+  echo ""
+  echo "---------------------------------------------------------"
+  echo Running command {{ aCmd.name }}
+  echo ""
+  echo "cmd: [{{ aCmd.cmd }}]"
+  echo "---------------------------------------------------------"
+  cd {{ aCmd.chdir }}
+  {{ aCmd.cmd }}
+  echo "---------------------------------------------------------"
+  {% endfor %}
+"""
+  theTargetFile = aDir / "{pcfHome}".format_map(rVars) / 'tmp' / ('run_command_'+aRole)
+  for aCmd in rCmds :
+    for aKey, aValue in aCmd.items() :
+      aCmd[aKey] = aValue.format_map(rVars)
+  config['rCmds'] = rCmds
+  jinjaFile(cmdTemplate, theTargetFile, config, secrets)
+  config['rCmds'] = None
+  theTargetFile.chmod(0o0755)
 
 def createFilesFor(aRole, rFiles, rVars, aDir, config, secrets) :
   for aFile in rFiles :
-    contents = rcf.roles.loadResourceFor(aRole, aFile['src'])
+    contents = loadResourceFor(aRole, aFile['src'])
     theTargetFile = aDir / aFile['dest'].format_map(rVars)
+    if aFile['src'].endswith('.j2') :
+      jinjaFile(contents, theTargetFile, config, secrets)
+    else :
+      copyFile(contents, theTargetFile)
     theTargetMode = 0o0644
     if 'mode' in aFile :
       theTargetMode = aFile['mode']
-    if aFile['src'].endswith('.j2') :
-      rcf.roles.jinjaFile(contents, theTargetFile, config, secrets)
-    else :
-      rcf.roles.copyFile(contents, theTargetFile)
+    theTargetFile.chmod(theTargetMode)
 
 def createLocalResourcesFor(aRole, gVars, aHost, aDir, config, secrets) :
-  rTasks = rcf.roles.loadTasksFor(aRole)
+  rTasks = loadTasksFor(aRole)
   rVars  = {}
-  rcf.roles.mergeVars(rVars, gVars)
+  mergeVars(rVars, gVars)
   if 'vars' in rTasks :
-    rcf.roles.mergeVars(rVars, rTasks['vars'])
+    mergeVars(rVars, rTasks['vars'])
 
   if 'targetDirs' in rTasks :
     for aTargetDir in rTasks['targetDirs'] :
@@ -33,8 +97,10 @@ def createLocalResourcesFor(aRole, gVars, aHost, aDir, config, secrets) :
       theTargetDir.mkdir(parents=True, exist_ok=True)
 
   if 'files' in rTasks :
-    rFiles = rTasks['files']
     createFilesFor(aRole, rTasks['files'], rVars, aDir, config, secrets)
+
+  if 'commands' in rTasks :
+    createRunCommandFor(aRole, rTasks['commands'], rVars, aDir, config, secrets)
 
   if 'workers' in config :
     if aRole in config['workers'] :
@@ -48,17 +114,20 @@ def createLocalResources(setupConfig, config, secrets) :
   tmpDir = Path(setupConfig['tmpDir'])
   gConfig = config['globalConfig']
 
-  gTasks  = rcf.roles.loadTasksFor()
+  gTasks  = loadTasksFor()
   gVars   = {}
   if 'vars' in gTasks :
-    rcf.roles.mergeVars(gVars, gTasks['vars'])
-
+    mergeVars(gVars, gTasks['vars'])
 
   hList   = gConfig['hostList']
   for aHost in hList :
     hConfig = config[aHost]
     hDir = tmpDir / aHost
     hDir.mkdir()
+    if aHost == platform.node() :
+      createLocalResourcesFor(
+        'taskManager', gVars, aHost, hDir, hConfig, secrets[aHost]
+      )
     if 'workers' in hConfig :
       createLocalResourcesFor(
         'allWorkers', gVars, aHost, hDir, hConfig, secrets[aHost]
