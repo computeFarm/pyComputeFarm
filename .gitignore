@@ -1,5 +1,5 @@
 tmp
-
+.pdm.toml
 
 # DO NOT version control the "local" Ansible configuration files
 hosts

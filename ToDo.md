@@ -28,3 +28,9 @@
 
 1. Add new required variables (taskManager/cutelogActions
    host/interface/port)
+
+## Resources
+
+- https://cryptography.io/en/latest/
+- https://www.thepythoncode.com/article/encrypt-decrypt-files-symmetric-python#file-encryption-with-password
+- https://github.com/getsenic/senic.cryptoyaml
