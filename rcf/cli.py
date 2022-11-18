@@ -16,16 +16,8 @@ import rcf.config
 def cli(ctx, config) :
   ctx.ensure_object(dict)
   ctx.obj['configPath'] = config
-  configDict = {
-    'globalConfig' : {
-      'configPath' : config
-    }
-  }
-  rcf.config.loadGlobalConfiguration(configDict)
-  ctx.obj['config'] = configDict
 
 cli.add_command(rcf.setup.setup)
 cli.add_command(rcf.run.run)
 cli.add_command(rcf.cryption.encrypt)
 cli.add_command(rcf.cryption.decrypt)
-cli.add_command(rcf.cryption.newsalt)
