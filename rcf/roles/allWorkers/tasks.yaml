@@ -1,0 +1,11 @@
+targetDirs:
+  - "{sysHome}"
+  - "{pcfHome}/bin"
+  - "{pcfHome}/lib"
+  - "{pcfHome}/tmp"
+  - "{pcfHome}/config"
+
+files:
+  - worker :
+    dest: "{pcfHome}/bin/worker"
+    mode: 0755

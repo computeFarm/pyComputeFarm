@@ -15,8 +15,14 @@ def setup(ctx) :
 
   configPath = ctx.obj['configPath']
   config     = rcf.config.initializeConfig(configPath)
-  rcf.config.loadGlobalConfiguration(config)
-  rcf.config.loadConfigurationFor(config)
+  secrets    = rcf.config.initializeSecrets()
+  passPhrase = None
+  if rcf.config.hasVaults(configPath) :
+    passPhrase = rcf.config.askForPassPhrase()
+  rcf.config.loadGlobalConfiguration(config, secrets, passPhrase=passPhrase)
+  rcf.config.loadConfigurationFor(config, secrets, passPhrase=passPhrase)
   print("----------------------------------------------------")
   print(yaml.dump(config))
   print("----------------------------------------------------")
+  #print(yaml.dump(secrets))
+  #print("----------------------------------------------------")

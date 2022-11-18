@@ -1,0 +1,11 @@
+[Unit]
+Description=Start cutelogActions GUI
+
+[Service]
+Environment="DISPLAY=:0"
+Environment="XAUTHORITY={{ ansible_facts.user_dir }}/.Xauthority"
+ExecStart={{ ansible_facts.user_dir }}/.local/bin/cla
+Restart=always
+
+[Install]
+WantedBy=default.target

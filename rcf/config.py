@@ -51,7 +51,12 @@ def initializeConfig(aConfigPath) :
     }
   }
 
-def loadGlobalConfiguration(config, passPhrase=None) :
+def initializeSecrets() :
+  return {
+    'globalConfig' : {}
+  }
+
+def loadGlobalConfiguration(config, secrets, passPhrase=None) :
 
   # Start by loading the global configuration from any *file* in
   # `config/globalConfig` which is not `vault`. Files are merged in
@@ -68,10 +73,15 @@ def loadGlobalConfiguration(config, passPhrase=None) :
   items.sort()
   for anItem in items :
     if not anItem.is_file() : continue
-    if str(anItem).endswith('vault') : continue
     with open(anItem, 'r') as cf :
-      gConfig = yaml.safe_load(cf.read())
-    mergeYamlData(config['globalConfig'], gConfig, 'globalConfig')
+      contents = cf.read()
+    if not str(anItem).endswith('vault') :
+      gConfig = yaml.safe_load(contents)
+      mergeYamlData(config['globalConfig'], gConfig, 'globalConfig')
+    elif passPhrase :
+      decryptedContents = decrypt(contents, passPhrase)
+      gSecrets = yaml.safe_load(decryptedContents)
+      mergeYamlData(secrets['globalConfig'], gSecrets, 'secretGlobalConfig')
 
   # Now determine the list of hosts
   hostList = []
@@ -82,7 +92,7 @@ def loadGlobalConfiguration(config, passPhrase=None) :
   hostList.sort()
   config['globalConfig']['hostList'] = hostList
 
-def loadConfigurationFor(config, hosts=None, passPhrase=None) :
+def loadConfigurationFor(config, secrets, hosts=None, passPhrase=None) :
   if hosts is None :
     hosts = config['globalConfig']['hostList']
   if not isinstance(hosts, list) :
@@ -90,18 +100,26 @@ def loadConfigurationFor(config, hosts=None, passPhrase=None) :
 
   configPath = Path(config['globalConfig']['configPath'])
   for aHost in hosts :
-    if aHost not in config : config[aHost] = {}
-    mergeYamlData(config[aHost], config['globalConfig'], aHost)
+    if aHost not in config :
+      config[aHost] = {}
+      secrets[aHost] = {}
+    mergeYamlData(config[aHost],  config['globalConfig'],  aHost)
+    mergeYamlData(secrets[aHost], secrets['globalConfig'], 'secret-'+aHost)
 
     hostPath = configPath / aHost
     items = list(hostPath.iterdir())
     items.sort()
     for anItem in items :
       if not anItem.is_file() : continue
-      if str(anItem).endswith('vault') : continue
       with open(anItem, 'r') as cf :
-        hostConfig = yaml.safe_load(cf.read())
-      mergeYamlData(config[aHost], hostConfig, aHost)
+        contents = cf.read()
+      if not str(anItem).endswith('vault') :
+        hostConfig = yaml.safe_load(contents)
+        mergeYamlData(config[aHost], hostConfig, aHost)
+      elif passPhrase :
+        decryptedContents = decrypt(contents, passPhrase)
+        hSecrets = yaml.safe_load(decryptedContents)
+        mergeYamlData(secrets[aHost], hSecrets, 'secret-'+aHost)
 
 def hasVaults(configPath) :
   vaults = Path(configPath).glob('*/vault')
@@ -174,4 +192,3 @@ def decrypt(eContents, passPhrase) :
     sys.exit(1)
 
   return contents
-
