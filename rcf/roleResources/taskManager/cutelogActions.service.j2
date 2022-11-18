@@ -3,8 +3,8 @@ Description=Start cutelogActions GUI
 
 [Service]
 Environment="DISPLAY=:0"
-Environment="XAUTHORITY={{ ansible_facts.user_dir }}/.Xauthority"
-ExecStart={{ ansible_facts.user_dir }}/.local/bin/cla
+Environment="XAUTHORITY={{ ssh_home }}/.Xauthority"
+ExecStart={{ ssh_home }}/.local/bin/cla
 Restart=always
 
 [Install]

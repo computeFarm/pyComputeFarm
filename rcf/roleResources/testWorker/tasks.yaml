@@ -1,0 +1,28 @@
+targetDirs:
+  - "{sysHome}"
+  - "{pcfHome}/bin"
+  - "{pcfHome}/lib"
+  - "{pcfHome}/tmp"
+  - "{pcfHome}/config"
+
+files:
+  - src: testWorker.target.j2
+    dest: "{sysHome}/testWorker.target"
+    mode: 0644
+
+list:
+  - src: runnerLogParser.py.j2
+    dest: "{pcfHome}/lib/runnerLogParser-{aWorker}.py"
+    mode: 0644
+  - src: runner.j2
+    dest: "{pcfHome}/tmp/runner-{aWorker}"
+    mode: 0755
+  - src: testExceptions.j2
+    dest: "{pcfHome}/tmp/testExceptions-{aWorker}"
+    mode: 0755
+  - src: runnerConfig.yaml.j2
+    dest: "{pcfHome}/config/runnerConfig-{aWorker}.yaml"
+    mode: 0644
+  - src: testWorker.service.j2
+    dest: "{sysHome}/{aWorker}.service"
+    mode: 0644

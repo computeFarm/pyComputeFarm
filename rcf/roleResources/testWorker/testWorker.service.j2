@@ -1,0 +1,14 @@
+# see:
+# https://unix.stackexchange.com/questions/228277/grouping-systemd-services
+
+[Unit]
+Description=Start a compute farm testWorker
+Partof=testWorker.target
+
+[Service]
+WorkingDirectory={{ ssh_home }}/.local/pyComputeFarm/tmp
+ExecStart={{ ssh_home }}/.local/pyComputeFarm/bin/worker {{ ssh_home }}/.local/pyComputeFarm/config/runnerConfig-{{aWorker}}.yaml
+Restart=always
+
+[Install]
+WantedBy=default.target

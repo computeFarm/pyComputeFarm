@@ -3,8 +3,8 @@
 echo $*
 
 counter=0
-until ./testExceptions-{{item}} ; do
-  echo "Restarting {{ item }}"
+until ./testExceptions-{{aWorker}} ; do
+  echo "Restarting {{ aWorker }}"
   sleep 2
   let counter=counter+1
   if [ $counter -ge 5 ]; then

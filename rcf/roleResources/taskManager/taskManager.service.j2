@@ -1,0 +1,9 @@
+[Unit]
+Description=Start user's local compute farm taskManager
+
+[Service]
+ExecStart={{ ssh_home }}/.local/pyComputeFarm/bin/taskManager {{ ssh_home }}/.local/pyComputeFarm/config/taskManager.yaml
+Restart=always
+
+[Install]
+WantedBy=default.target

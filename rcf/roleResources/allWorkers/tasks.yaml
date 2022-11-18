@@ -6,6 +6,6 @@ targetDirs:
   - "{pcfHome}/config"
 
 files:
-  - worker :
+  - src: worker
     dest: "{pcfHome}/bin/worker"
     mode: 0755

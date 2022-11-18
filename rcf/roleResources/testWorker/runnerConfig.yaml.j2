@@ -1,15 +1,15 @@
-# This is the task worker description of the {{ item }} runner command
+# This is the task worker description of the {{ aWorker }} runner command
 
 # How to contact the TaskManager
 taskManager:
   host: {{ taskMaster.host }}
   port: {{ taskMaster.port}}
 
-logParser: runnerLogParser-{{item}}
+logParser: runnerLogParser-{{aWorker}}
 workerType: runner
 
 cmd:
-  prefix: ./runner-{{item}}
+  prefix: ./runner-{{aWorker}}
 
 # env:
 #  silly: sillier

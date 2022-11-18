@@ -4,22 +4,22 @@ targetDirs:
   - "{pcfHome}/config"
 
 files:
-  - hashCheck.c :
+  - src: hashCheck.c
     dest: /tmp/hashCheck.c
     mode: 0644
-  - taskManager :
+  - src: taskManager
     dest: "{pcfHome}/bin/taskManger"
     mode: 0755
-  - newTask :
+  - src: newTask
     dest: "{pcfHome}/bin/newTask"
     mode: 0755
-  - taskManager.yaml.j2 :
+  - src: taskManager.yaml.j2
     dest: "{pcfHome}/config/taskManager.yaml"
     mode: 0644
-  - taskManager.service.j2 :
+  - src: taskManager.service.j2
     dest: "{sysHome}/taskManager.service"
     mode: 0644
-  - cutelogActions.service.j2 :
+  - src: cutelogActions.service.j2
     dest: "{sysHome}/cutelogActions.service"
 
 command:
