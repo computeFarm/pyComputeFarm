@@ -25,5 +25,5 @@ files:
 
 commands:
   - name: hashCheck
-    cmd: gcc -o hashCheck /tmp/hashChect.c -lcrypto
+    cmd: gcc -o hashCheck $HOME/{pcfHome}/tmp/hashCheck.c -lcrypto
     chdir: "{pcfHome}/bin"
