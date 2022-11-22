@@ -1,6 +1,7 @@
 targetDirs:
   - "{sysHome}"
   - "{pcfHome}/bin"
+  - "{pcfHome}/files"
   - "{pcfHome}/lib"
   - "{pcfHome}/tmp"
   - "{pcfHome}/config"

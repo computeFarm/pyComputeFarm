@@ -27,3 +27,19 @@ commands:
   - name: hashCheck
     cmd: gcc -o hashCheck $HOME/{pcfHome}/tmp/hashCheck.c -lcrypto
     chdir: "{pcfHome}/bin"
+
+start:
+  - name: reload systemctl
+    cmd: systemctl --user daemon-reload
+  - name: start taskManager
+    cmd: systemctl --user start taskManager
+  - name: start cutelogActions
+    cmd: systemctl --user start cutelogActions
+
+stop:
+  - name: reload systemctl
+    cmd: systemctl --user daemon-reload
+  - name: stop cutelogActions
+    cmd: systemctl --user stop cutelogActions
+  - name: stop taskManager
+    cmd: systemctl --user stop taskManager

@@ -1,10 +1,4 @@
 [[package]]
-name = "aiofiles"
-version = "22.1.0"
-requires_python = ">=3.7,<4.0"
-summary = "File support for asyncio."
-
-[[package]]
 name = "cffi"
 version = "1.15.1"
 summary = "Foreign Function Interface for Python calling C code."
@@ -78,13 +72,9 @@ summary = "YAML parser and emitter for Python"
 
 [metadata]
 lock_version = "4.0"
-content_hash = "sha256:2e9bb5d5dcd57c05a7911df3c05610123898b4767384fb03827ee1c45c46106e"
+content_hash = "sha256:2a69fffc481b9a9d30722050aea574fadde09a590c0b2b3a9bdb95768ba5a73d"
 
 [metadata.files]
-"aiofiles 22.1.0" = [
-    {url = "https://files.pythonhosted.org/packages/86/26/6e5060a159a6131c430e8a01ec8327405a19a449a506224b394e36f2ebc9/aiofiles-22.1.0.tar.gz", hash = "sha256:9107f1ca0b2a5553987a94a3c9959fe5b491fdf731389aa5b7b1bd0733e32de6"},
-    {url = "https://files.pythonhosted.org/packages/a0/48/d5d1ab7cfe46e573c3694fa1365442a7d7cadc3abb03d8507e58a3755bb2/aiofiles-22.1.0-py3-none-any.whl", hash = "sha256:1142fa8e80dbae46bb6339573ad4c8c0841358f79c6eb50a493dceca14621bad"},
-]
 "cffi 1.15.1" = [
     {url = "https://files.pythonhosted.org/packages/00/05/23a265a3db411b0bfb721bf7a116c7cecaf3eb37ebd48a6ea4dfb0a3244d/cffi-1.15.1-cp27-cp27m-win_amd64.whl", hash = "sha256:e00b098126fd45523dd056d2efba6c5a63b71ffe9f2bbe1a4fe1716e1d0c331e"},
     {url = "https://files.pythonhosted.org/packages/03/7b/259d6e01a6083acef9d3c8c88990c97d313632bb28fa84d6ab2bb201140a/cffi-1.15.1-cp36-cp36m-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:173379135477dc8cac4bc58f45db08ab45d228b3363adb7af79436135d028405"},

@@ -26,3 +26,16 @@ list:
   - src: testWorker.service.j2
     dest: "{sysHome}/{aWorker}.service"
     mode: 0644
+
+start:
+  - name: reload systemctl
+    cmd: systemctl --user daemon-reload
+  - name: start testWorkers
+    cmd: systemctl --user start testWorker.target
+
+stop:
+  - name: reload systemctl
+    cmd: systemctl --user daemon-reload
+  - name: stop testWorkers
+    cmd: systemctl --user stop testWorker.target
+
