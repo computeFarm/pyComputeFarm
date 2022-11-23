@@ -164,6 +164,7 @@ def createLocalResourcesFor(aRole, gVars, aHost, aDir, config, secrets, logFile)
       if 'list' in rTasks and 'list' in config['workers'][aRole] :
         for aWorker in config['workers'][aRole]['list'] :
           rVars['aWorker'] = aWorker
+          config['aWorker'] = aWorker
           createFilesFor(aRole, rTasks['list'], rVars, aHost, aDir, config, secrets, logFile)
 
   return cmdTypes
@@ -175,13 +176,12 @@ def createStartStopRunCommandsForHost(cmdTypes, aHost, hDir, gVars, logFile) :
     for aCmd, aPath in someCmds.items() :
       if aCmd not in cmds : cmds[aCmd] = []
       cmds[aCmd].append('$HOME'+aPath.removeprefix(str(hDir)))
-  cmdTemplate = '''
-#!/bin/sh
+  cmdTemplate = '''#!/bin/sh
 
 {% for aCmd in cmds %}
 {{ aCmd }}
 {% endfor %}
-  '''
+'''
   defaultTargetFiles = {
     'commands' : str(hDir / "{pcfHome}".format_map(gVars) / 'tmp' / 'run_commands'),
     'start'    : str(hDir / "{pcfHome}".format_map(gVars) / 'bin' / 'startComputeFarm'),

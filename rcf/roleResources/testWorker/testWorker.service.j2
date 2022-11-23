@@ -3,7 +3,7 @@
 
 [Unit]
 Description=Start a compute farm testWorker
-Partof=testWorker.target
+PartOf=testWorker.target
 
 [Service]
 WorkingDirectory={{ ssh_home }}/.local/pyComputeFarm/tmp

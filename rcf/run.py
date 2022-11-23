@@ -3,8 +3,9 @@ import click
 import datetime
 import importlib.resources
 from multiprocessing import Process
-from pathlib import Path
+import os
 import pexpect
+import platform
 import sys
 from threading import Thread
 import time
@@ -60,12 +61,14 @@ def runCommandOnHost(aHost, runCmdPath, sshOpts, config, secrets, logFile, timeO
   logFile.write(f"running command [{runCmdPath}] on {aHost}\n")
   if timeOut is None : logFile.write("running with no timeout!\n")
   else : logFile.write(f"running with timeOut = {timeOut}\n")
+  connectionCmd = "ssh {sshOpts} {ssh_user}@{aHost} {runCmdPath}"
   runCmd = pexpect.spawn(
-    "ssh {sshOpts} {ssh_user}@{aHost} {runCmdPath}".format(
+    connectionCmd.format(
       sshOpts=sshOpts,
       aHost=aHost,
       runCmdPath=runCmdPath,
       ssh_user=config['ssh_user'],
+      ssh_home=config['ssh_home'],
       timeout=timeOut
     ),
     encoding='utf-8'
@@ -125,7 +128,10 @@ def unmountSshfsOnAHost(mountProcess, aHost, gVars, config, secrets, logFileBase
 
 def startAHost(aHost, gVars, config, secrets, logFileBase) :
   print(f"Starting host {aHost}")
-  runCmdPath = Path("{pcfHome}".format_map(gVars)) / 'bin' / 'startComputeFarm'
+  runCmdPath = os.path.join(
+    "{pcfHome}".format_map(gVars),
+    'bin', 'startComputeFarm'
+  )
   exitStatus = 0
   with open(str(logFileBase)+'-start', "w") as logFile :
     exitStatus = runCommandOnHost(aHost, runCmdPath, "", config, secrets, logFile)
@@ -133,11 +139,14 @@ def startAHost(aHost, gVars, config, secrets, logFileBase) :
 
 def stopAHost(aHost, gVars, config, secrets, logFileBase) :
   print(f"Stopping host {aHost}")
-  runCmdPath = Path("{pcfHome}".format_map(gVars)) / 'bin' / 'stopComputeFarm'
+  runCmdPath = os.path.join(
+    "{pcfHome}".format_map(gVars),
+    'bin', 'stopComputeFarm'
+  )
   exitStatus = 0
   with open(str(logFileBase)+'-stop', "w") as logFile :
     exitStatus = runCommandOnHost(aHost, runCmdPath, "", config, secrets, logFile)
-  print(f"Stoped host {aHost} (exit status: {exitStatus})")
+  print(f"Stopped host {aHost} (exit status: {exitStatus})")
 
 def isHostUp(aHost) :
   pingCmd = pexpect.spawn(f"ping {aHost}")
@@ -186,8 +195,8 @@ def run(ctx) :
   for aHost in hList :
     if not isHostUp(aHost) : continue
 
-    logFileBase = Path("logs") / (aHost + '-' + timeNow)
-    logFileBase.parent.mkdir(parents=True, exist_ok=True)
+    logFileBase = os.path.join("logs", (aHost + '-' + timeNow) )
+    os.makedirs(os.path.dirname(logFileBase), exist_ok=True)
 
     mountProcess = Process(target=mountSshfsOnAHost, args=[
       aHost, gVars, config[aHost], secrets[aHost], logFileBase

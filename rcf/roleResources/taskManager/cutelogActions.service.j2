@@ -1,5 +1,6 @@
 [Unit]
 Description=Start cutelogActions GUI
+Before=taskManager.service
 
 [Service]
 Environment="DISPLAY=:0"
@@ -9,3 +10,4 @@ Restart=always
 
 [Install]
 WantedBy=default.target
+WantedBy=taskManager.service

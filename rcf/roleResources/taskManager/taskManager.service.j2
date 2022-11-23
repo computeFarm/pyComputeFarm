@@ -1,5 +1,7 @@
 [Unit]
 Description=Start user's local compute farm taskManager
+Wants=cutelogActions.service
+After=cutelogActions.service
 
 [Service]
 ExecStart={{ ssh_home }}/.local/pyComputeFarm/bin/taskManager {{ ssh_home }}/.local/pyComputeFarm/config/taskManager.yaml

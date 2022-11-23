@@ -67,12 +67,17 @@ cutelogActionsWriter = None
 async def openCutelog(cuteLogActionsHost, cutelogActionsPort) :
   global cutelogActionsWriter
   if cutelogActionsHost and cutelogActionsPort :
-    try :
-      cutelogActionsReader, cutelogActionsWriter = await asyncio.open_connection(
-      	cutelogActionsHost, int(cutelogActionsPort)
-      )
-    except :
-      cutelogActionsWriter = None
+    for attempt in range(5) :
+      try :
+        cutelogActionsReader, cutelogActionsWriter = await asyncio.open_connection(
+      	  cutelogActionsHost, int(cutelogActionsPort)
+        )
+        print(f"Connected to the cutelogActions on the {attempt} attempt")
+        sys.stdout.flush()
+        break
+      except :
+        cutelogActionsWriter = None
+      await asyncio.sleep(1)
 
 async def cutelog(jsonLog) :
   if not cutelogActionsWriter :
@@ -84,6 +89,8 @@ async def cutelog(jsonLog) :
       print(">>>>>>>>>>>>>>>>>>>>>>>")
       print(yaml.dump(jsonLog))
       print("<<<<<<<<<<<<<<<<<<<<<<<")
+    print("NO cutelogActionsWriter!")
+    sys.stdout.flush()
     return
 
   if isinstance(jsonLog, dict) :

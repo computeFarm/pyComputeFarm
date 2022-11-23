@@ -9,7 +9,7 @@ files:
     dest: "{pcfHome}/tmp/hashCheck.c"
     mode: 0644
   - src: taskManager
-    dest: "{pcfHome}/bin/taskManger"
+    dest: "{pcfHome}/bin/taskManager"
     mode: 0755
   - src: newTask
     dest: "{pcfHome}/bin/newTask"
@@ -31,15 +31,15 @@ commands:
 start:
   - name: reload systemctl
     cmd: systemctl --user daemon-reload
-  - name: start taskManager
-    cmd: systemctl --user start taskManager
   - name: start cutelogActions
     cmd: systemctl --user start cutelogActions
+  - name: start taskManager
+    cmd: systemctl --user start taskManager
 
 stop:
   - name: reload systemctl
     cmd: systemctl --user daemon-reload
-  - name: stop cutelogActions
-    cmd: systemctl --user stop cutelogActions
   - name: stop taskManager
     cmd: systemctl --user stop taskManager
+  - name: stop cutelogActions
+    cmd: systemctl --user stop cutelogActions
