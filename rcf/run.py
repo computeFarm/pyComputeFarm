@@ -193,7 +193,9 @@ def run(ctx) :
   startThreads   = []
   stopThreads    = []
   for aHost in hList :
-    if not isHostUp(aHost) : continue
+    if not isHostUp(aHost) :
+      print(f"Host {aHost} is not up")
+      continue
 
     logFileBase = os.path.join("logs", (aHost + '-' + timeNow) )
     os.makedirs(os.path.dirname(logFileBase), exist_ok=True)

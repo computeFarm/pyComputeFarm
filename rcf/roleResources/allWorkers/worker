@@ -65,7 +65,7 @@ def defaultLogParser(logName, logMsg) :
   return {
     'time'  : time.time(),
     'name'  : logName,
-    'level' : 'info',
+    'level' : 'debug',
     'msg'   : logMsg
   }
 
@@ -120,7 +120,7 @@ if 'verbose' in config :
 
 async def jsonLog(writer, aLogDict) :
   if 'time'  not in aLogDict : aLogDict['time']  = time.time()
-  if 'level' not in aLogDict : aLogDict['level'] = 'info'
+  if 'level' not in aLogDict : aLogDict['level'] = 'debug'
   writer.write(json.dumps(aLogDict).encode())
   await writer.drain()
   writer.write(b'\n')

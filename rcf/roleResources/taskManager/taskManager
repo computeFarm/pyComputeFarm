@@ -121,7 +121,7 @@ taskQueues = {}
 
 async def handleConnection(reader, writer) :
   addr = writer.get_extra_info('peername')
-  await cutelogInfo(f"Handling new connection from {addr!r}")
+  await cutelogDebug(f"Handling new connection from {addr!r}")
 
   # read task type
   taskJson = await reader.readuntil()
@@ -144,17 +144,17 @@ async def handleConnection(reader, writer) :
 
   # IF task is a worker... place the reader/writer in a queue
   if 'type' in task and task['type'] == 'worker' :
-    await cutelogInfo(f"Got a new worker connection...")
+    await cutelogDebug(f"Got a new worker connection...")
     if taskType not in taskQueues :
       taskQueues[taskType] = asyncio.Queue()
-    await cutelogInfo(f"Queing {taskType!r} worker")
+    await cutelogDebug(f"Queing {taskType!r} worker")
     await taskQueues[taskType].put({
       'taskType' : taskType,
       'addr'     : addr,
       'reader'   : reader,
       'writer'   : writer
     })
-    await cutelogInfo("Waiting for a new connection...")
+    await cutelogDebug("Waiting for a new connection...")
     return
 
   # ELSE task is a request... get a worker and echo the results
@@ -183,7 +183,7 @@ async def handleConnection(reader, writer) :
       workerWriter.write(b"\n")
       await workerWriter.drain()
     except ConnectionResetError :
-      await cutelogInfo("The assigned worker has died.... so we are trying the next")
+      await cutelogDebug("The assigned worker has died.... so we are trying the next")
       continue
     # We have found a live worker...
     break
@@ -192,7 +192,7 @@ async def handleConnection(reader, writer) :
     try :
       data = await workerReader.readuntil()
     except :
-      await cutelogInfo(f"Worker {workerAddr!r} closed connection")
+      await cutelogDebug(f"Worker {workerAddr!r} closed connection")
       break
 
     message = data.decode()
@@ -204,7 +204,7 @@ async def handleConnection(reader, writer) :
       #writer.write(b"\n")
       await writer.drain()
 
-  await cutelogInfo(f"Closing the connection to {addr!r}")
+  await cutelogDebug(f"Closing the connection to {addr!r}")
   writer.close()
   await writer.wait_closed()
 

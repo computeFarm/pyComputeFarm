@@ -266,7 +266,9 @@ def isHostUp(aHost) :
   return pResult == 1
 
 def setupAHost(tmpDir, aHost, gVars, config, secrets) :
-  if not isHostUp(aHost) : return
+  if not isHostUp(aHost) :
+    print(f"Host {aHost} is not up")
+    return
 
   print(f"Setting up host {aHost} in {tmpDir}/{aHost}")
   timeNow = datetime.datetime.now()
