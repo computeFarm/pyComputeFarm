@@ -130,7 +130,7 @@ async def tcpWorker(config) :
   workerType = config['workerType']
   print(f"Starting [{workerType}] worker")
 
-  for attempt in range(5) :
+  for attempt in range(60) :
     try :
       reader, writer = await asyncio.open_connection(
         config['taskManager']['host'],
@@ -142,6 +142,8 @@ async def tcpWorker(config) :
     except :
       reader = None
       writer = None
+      print(f"Could not connect to taskManager on the {attempt} attempt")
+      sys.stdout.flush()
     await asyncio.sleep(1)
 
   if reader is None or writer is None :
