@@ -2,12 +2,12 @@
 # https://unix.stackexchange.com/questions/228277/grouping-systemd-services
 
 [Unit]
-Description=Start a compute farm ConTeXt Worker
+Description=Start a compute farm ConTeXt Worker ({{aWorker}})
 PartOf=contextWorker.target
 
 [Service]
 WorkingDirectory={{ ssh_home }}/.local/pyComputeFarm/files
-ExecStart={{ ssh_home }}/.local/pyComputeFarm/bin/worker {{ ssh_home }}/.local/pyComputeFarm/config/contextConfig-{{aWorker}}.yaml
+ExecStart={{ ssh_home }}/.local/pyComputeFarm/bin/worker {{ aWorker }} {{ ssh_home }}/.local/pyComputeFarm/config/contextConfig.yaml
 Restart=always
 
 [Install]
