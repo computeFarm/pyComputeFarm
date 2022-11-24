@@ -1,0 +1,16 @@
+# This is the task worker description of the {{ aWorker }} command
+
+# How to contact the TaskManager
+taskManager:
+  host: {{ taskMaster.host }}
+  port: {{ taskMaster.port}}
+
+logParser: contextLogParser
+workerType: context
+
+cmd:
+  prefix: context
+
+# dir: aPath
+
+verbose: true

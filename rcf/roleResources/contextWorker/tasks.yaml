@@ -1,0 +1,35 @@
+targetDirs:
+  - texmf
+  - "{sysHome}"
+  - "{pcfHome}/bin"
+  - "{pcfHome}/lib"
+  - "{pcfHome}/config"
+
+files:
+  - src: contextWorker.target.j2
+    dest: "{sysHome}/contextWorker.target"
+    mode: 0644
+  - src: contextLogParser.py.j2
+    dest: "{pcfHome}/lib/contextLogParser.py"
+    mode: 0644
+  - src: contextConfig.yaml.j2
+    dest: "{pcfHome}/config/contextConfig.yaml"
+    mode: 0644
+
+list:
+  - src: contextWorker.service.j2
+    dest: "{sysHome}/{aWorker}.service"
+    mode: 0644
+
+start:
+  - name: reload systemctl
+    cmd: systemctl --user daemon-reload
+  - name: start contextWorkers
+    cmd: systemctl --user start contextWorker.target
+
+stop:
+  - name: reload systemctl
+    cmd: systemctl --user daemon-reload
+  - name: stop contextWorkers
+    cmd: systemctl --user stop contextWorker.target
+

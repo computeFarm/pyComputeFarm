@@ -48,9 +48,14 @@ def loadResourceFor(aRole, aResource) :
     contents = importlib.resources.read_text('rcf.roleResources', aResource)
   return contents
 
-def loadTasksFor(aRole=None) :
+def loadTasksFor(aRole=None, config={}) :
   taskYaml = loadResourceFor(aRole, 'tasks.yaml')
-  return yaml.safe_load(taskYaml)
+  tasks = yaml.safe_load(taskYaml)
+  if aRole :
+    if 'tasks' in config :
+      if aRole in config['tasks'] :
+        rcf.config.mergeYamlData(tasks, config['tasks'][aRole], '.')
+  return tasks
 
 def mergeVars(oldVars, newVars) :
   for aKey, aValue in newVars.items() :
@@ -118,10 +123,32 @@ def createFilesFor(aRole, rFiles, rVars, aHost, aDir, config, secrets, logFile) 
       theTargetMode = aFile['mode']
     theTargetFile.chmod(theTargetMode)
 
+def rsyncFilesFor(aRole, rRsync, rVars, aHost, aDir, config, secrets, logFile) :
+  logFile.write(f"rsyncing files for {aRole} on {aHost}\n")
+  homeDir = Path.home()
+  for anRsync in rRsync :
+    targetDir = aDir / anRsync['dest'].format_map(rVars)
+    srcDir    = homeDir / anRsync['src'].format_map(rVars)
+    rsyncCmd = pexpect.spawn(
+      "rsync -av {srcDir} {targetDir}".format(
+        srcDir=str(srcDir),
+        targetDir=str(targetDir),
+      ),
+      encoding='utf-8'
+    )
+    rsyncCmd.logfile_read = logFile
+    while True :
+      pResult = rsyncCmd.expect([
+        "Enter passphrase for key", pexpect.EOF, pexpect.TIMEOUT
+      ])
+      if pResult == 0 :
+        rsyncCmd.sendline(secrets['ssh_pass'])
+      else : break
+
 def createLocalResourcesFor(aRole, gVars, aHost, aDir, config, secrets, logFile) :
   logFile.write(f"creating global resources for {aRole} on {aHost}\n")
   cmdTypes = {}
-  rTasks = loadTasksFor(aRole)
+  rTasks = loadTasksFor(aRole, config)
   rVars  = {}
   mergeVars(rVars, gVars)
   if 'vars' in rTasks :
@@ -134,6 +161,9 @@ def createLocalResourcesFor(aRole, gVars, aHost, aDir, config, secrets, logFile)
 
   if 'files' in rTasks :
     createFilesFor(aRole, rTasks['files'], rVars, aHost,  aDir, config, secrets, logFile)
+
+  if 'rsync' in rTasks :
+    rsyncFilesFor(aRole, rTasks['rsync'], rVars, aHost, aDir, config, secrets, logFile)
 
   if 'commands' in rTasks :
     theTargetFile = aDir / "{pcfHome}".format_map(rVars) / 'tmp' / ('run_command_'+aRole)
@@ -220,14 +250,14 @@ def createLocalResourcesForHost(tmpDir, aHost, gVars, config, secrets, logFile) 
 
 def rsyncResourcesForHost(tmpDir, aHost, gVars, config, secrets, logFile) :
     logFile.write(f"rsyncing resouces to {aHost}\n")
-    rsyncCmd = pexpect.spawn(
-      "rsync -av {tmpDir}/{aHost}/ {ssh_user}@{aHost}:.".format(
-        tmpDir=tmpDir,
-        aHost=aHost,
-        ssh_user=config['ssh_user']
-      ),
-      encoding='utf-8'
+    rsyncCmdStr = "rsync -av {tmpDir}/{aHost}/ {ssh_user}@{aHost}:.".format(
+      tmpDir=tmpDir,
+      aHost=aHost,
+      ssh_user=config['ssh_user']
     )
+    logFile.write(rsyncCmdStr)
+    logFile.write("\n")
+    rsyncCmd = pexpect.spawn(rsyncCmdStr, encoding='utf-8' )
     rsyncCmd.logfile_read = logFile
     while True :
       pResult = rsyncCmd.expect([
