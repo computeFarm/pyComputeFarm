@@ -232,6 +232,11 @@ async def handleConnection(reader, writer) :
     # We have found a live worker...
     break
 
+  # add a small fudge factor to the leastLoadedHost's current load to
+  # ensure we don't keep choosing and hence over load it
+  #
+  hostLoads[leastLoadedHost] += 0.1
+
   while not workerReader.at_eof() :
     try :
       data = await workerReader.readuntil()
