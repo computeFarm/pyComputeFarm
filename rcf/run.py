@@ -1,7 +1,6 @@
 
 import click
 import datetime
-import importlib.resources
 from multiprocessing import Process
 import os
 import pexpect
@@ -11,7 +10,7 @@ from threading import Thread
 import time
 import yaml
 
-import rcf.config
+from rcf.config import ( loadConfig, loadTasksFor, mergeVars )
 
 # We *could* use an asycnio pattern... however the tasks for each host are
 # fundamentally synchronous and must be done in a specific order. The only
@@ -41,21 +40,6 @@ import rcf.config
 # case, by the OS).
 
 timeNow = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%s.%f')
-
-def loadResourceFor(aRole, aResource) :
-  if aRole :
-    contents = importlib.resources.read_text('rcf.roleResources.'+aRole, aResource)
-  else :
-    contents = importlib.resources.read_text('rcf.roleResources', aResource)
-  return contents
-
-def loadTasksFor(aRole=None) :
-  taskYaml = loadResourceFor(aRole, 'tasks.yaml')
-  return yaml.safe_load(taskYaml)
-
-def mergeVars(oldVars, newVars) :
-  for aKey, aValue in newVars.items() :
-    oldVars[aKey] = aValue.format(oldVars)
 
 def runCommandOnHost(aHost, runCmdPath, sshOpts, config, secrets, logFile, timeOut=30) :
   logFile.write(f"running command [{runCmdPath}] on {aHost}\n")
@@ -157,36 +141,12 @@ def isHostUp(aHost) :
   pingCmd.terminate(force=True)
   return pResult == 1
 
-@click.command()
-@click.pass_context
-def run(ctx) :
-  print("running the compute farm")
-  if 'configPath' not in ctx.obj :
-    print("NO configPath provided!")
-    sys.exit(1)
-
-  configPath = ctx.obj['configPath']
-  config     = rcf.config.initializeConfig(configPath)
-  secrets    = rcf.config.initializeSecrets()
-  passPhrase = None
-  if rcf.config.hasVaults(configPath) :
-    passPhrase = rcf.config.askForPassPhrase()
-  rcf.config.loadGlobalConfiguration(config, secrets, passPhrase=passPhrase)
-  rcf.config.loadConfigurationFor(config, secrets, passPhrase=passPhrase)
-  if ctx.obj['verbose'] :
-    print("----------------------------------------------------")
-    print(yaml.dump(config))
-  if ctx.obj['secrets'] :
-    print("----------------------------------------------------")
-    print(yaml.dump(secrets))
-  print("----------------------------------------------------")
-
+def runHosts(config, secrets) :
   gConfig = config['globalConfig']
   gTasks  = loadTasksFor()
   gVars   = {}
   if 'vars' in gTasks :
     mergeVars(gVars, gTasks['vars'])
-  print(yaml.dump(gTasks))
   hList = gConfig['hostList']
   mountProcesses = []
   unmountThreads = []
@@ -226,3 +186,11 @@ def run(ctx) :
   for aThread  in stopThreads    : aThread.join()
   for aThread  in startThreads   : aThread.join()
   for aProcess in mountProcesses : aProcess.join()
+
+@click.command()
+@click.pass_context
+def run(ctx) :
+
+  config, secrets = loadConfig(ctx)
+
+  runHosts(config, secrets)

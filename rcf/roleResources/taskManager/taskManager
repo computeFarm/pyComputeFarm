@@ -119,7 +119,7 @@ async def cutelogInfo(msg) :
 async def cutelogDebug(msg) :
   await cutelogLog('debug', msg)
 
-taskQueues = {}
+workerQueues = {}
 
 async def handleConnection(reader, writer) :
   addr = writer.get_extra_info('peername')
@@ -147,10 +147,10 @@ async def handleConnection(reader, writer) :
   # IF task is a worker... place the reader/writer in a queue
   if 'type' in task and task['type'] == 'worker' :
     await cutelogDebug(f"Got a new worker connection...")
-    if taskType not in taskQueues :
-      taskQueues[taskType] = asyncio.Queue()
+    if taskType not in workerQueues :
+      workerQueues[taskType] = asyncio.Queue()
     await cutelogDebug(f"Queing {taskType!r} worker")
-    await taskQueues[taskType].put({
+    await workerQueues[taskType].put({
       'taskType' : taskType,
       'addr'     : addr,
       'reader'   : reader,
@@ -160,7 +160,7 @@ async def handleConnection(reader, writer) :
     return
 
   # ELSE task is a request... get a worker and echo the results
-  if taskType not in taskQueues :
+  if taskType not in workerQueues :
     cutelogDebug(f"No specialist worker found for the task type: [{taskType}]")
     writer.write(
       f"No specialist worker found for the task type: [{taskType}]".encode()
@@ -171,8 +171,8 @@ async def handleConnection(reader, writer) :
     return
 
   while True :
-    taskWorker = await taskQueues[taskType].get()
-    taskQueues[taskType].task_done()
+    taskWorker = await workerQueues[taskType].get()
+    workerQueues[taskType].task_done()
 
     try :
       workerAddr   = taskWorker['addr']

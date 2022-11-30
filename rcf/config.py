@@ -5,6 +5,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from cryptography.exceptions import InvalidSignature
 import getpass
+import importlib.resources
 from pathlib import Path
 import secrets
 import sys
@@ -192,3 +193,50 @@ def decrypt(eContents, passPhrase) :
     sys.exit(1)
 
   return contents
+
+#########################################################################
+# Resource management
+#
+def loadResourceFor(aRole, aResource) :
+  if aRole :
+    contents = importlib.resources.read_text('rcf.roleResources.'+aRole, aResource)
+  else :
+    contents = importlib.resources.read_text('rcf.roleResources', aResource)
+  return contents
+
+def loadTasksFor(aRole=None, config={}) :
+  taskYaml = loadResourceFor(aRole, 'tasks.yaml')
+  tasks = yaml.safe_load(taskYaml)
+  if aRole :
+    if 'tasks' in config :
+      if aRole in config['tasks'] :
+        mergeYamlData(tasks, config['tasks'][aRole], '.')
+  return tasks
+
+def mergeVars(oldVars, newVars) :
+  for aKey, aValue in newVars.items() :
+    oldVars[aKey] = aValue.format(oldVars)
+
+def loadConfig(ctx) :
+  print("Setting up the compute farm")
+  if 'configPath' not in ctx.obj :
+    print("NO configPath provided!")
+    sys.exit(1)
+
+  configPath = ctx.obj['configPath']
+  config     = initializeConfig(configPath)
+  secrets    = initializeSecrets()
+  passPhrase = None
+  if hasVaults(configPath) :
+    passPhrase = askForPassPhrase()
+  loadGlobalConfiguration(config, secrets, passPhrase=passPhrase)
+  loadConfigurationFor(config, secrets, passPhrase=passPhrase)
+  if ctx.obj['verbose'] :
+    print("----------------------------------------------------")
+    print(yaml.dump(config))
+  if ctx.obj['secrets'] :
+    print("----------------------------------------------------")
+    print(yaml.dump(secrets))
+  print("----------------------------------------------------")
+
+  return (config, secrets)

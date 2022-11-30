@@ -1,7 +1,6 @@
 
 import click
 import datetime
-import importlib.resources
 import jinja2
 from pathlib import Path
 import pexpect
@@ -12,7 +11,10 @@ import tempfile
 from threading import Thread
 import yaml
 
-import rcf.config
+from rcf.config import (
+  loadConfig, loadTasksFor, loadResourceFor,
+  mergeVars, mergeYamlData
+)
 
 # We *could* use an asycnio pattern... however the tasks for each host are
 # fundamentally synchronous and must be done in a specific order. The only
@@ -41,34 +43,14 @@ import rcf.config
 # our use) and so we *will* use threads (usually scheduled, in our linux
 # case, by the OS).
 
-def loadResourceFor(aRole, aResource) :
-  if aRole :
-    contents = importlib.resources.read_text('rcf.roleResources.'+aRole, aResource)
-  else :
-    contents = importlib.resources.read_text('rcf.roleResources', aResource)
-  return contents
-
-def loadTasksFor(aRole=None, config={}) :
-  taskYaml = loadResourceFor(aRole, 'tasks.yaml')
-  tasks = yaml.safe_load(taskYaml)
-  if aRole :
-    if 'tasks' in config :
-      if aRole in config['tasks'] :
-        rcf.config.mergeYamlData(tasks, config['tasks'][aRole], '.')
-  return tasks
-
-def mergeVars(oldVars, newVars) :
-  for aKey, aValue in newVars.items() :
-    oldVars[aKey] = aValue.format(oldVars)
-
 def copyFile(fileContents, toPath) :
   with open(toPath, 'w') as toFile :
     toFile.write(fileContents)
 
 def jinjaFile(fromTemplate, toPath, config, secrets, logFile) :
   env = {}
-  rcf.config.mergeYamlData(env, config,  '.')
-  rcf.config.mergeYamlData(env, secrets, '.')
+  mergeYamlData(env, config,  '.')
+  mergeYamlData(env, secrets, '.')
   try:
     template = jinja2.Template(fromTemplate)
     fileContents = template.render(env)
@@ -312,30 +294,7 @@ def setupAHost(tmpDir, aHost, gVars, config, secrets) :
     logFile.write(f"Finished setting up host {aHost}")
   print(f"Finished setting up host {aHost}")
 
-@click.command()
-@click.pass_context
-def setup(ctx) :
-  print("Setting up the compute farm")
-  if 'configPath' not in ctx.obj :
-    print("NO configPath provided!")
-    sys.exit(1)
-
-  configPath = ctx.obj['configPath']
-  config     = rcf.config.initializeConfig(configPath)
-  secrets    = rcf.config.initializeSecrets()
-  passPhrase = None
-  if rcf.config.hasVaults(configPath) :
-    passPhrase = rcf.config.askForPassPhrase()
-  rcf.config.loadGlobalConfiguration(config, secrets, passPhrase=passPhrase)
-  rcf.config.loadConfigurationFor(config, secrets, passPhrase=passPhrase)
-  if ctx.obj['verbose'] :
-    print("----------------------------------------------------")
-    print(yaml.dump(config))
-  if ctx.obj['secrets'] :
-    print("----------------------------------------------------")
-    print(yaml.dump(secrets))
-  print("----------------------------------------------------")
-
+def setupHosts(config, secrets) :
   tmpDir = Path(tempfile.mkdtemp(prefix='rcf-'))
 
   gConfig = config['globalConfig']
@@ -353,3 +312,10 @@ def setup(ctx) :
   for aThread in workThreads : aThread.start()
   for aThread in workThreads : aThread.join()
 
+@click.command()
+@click.pass_context
+def setup(ctx) :
+
+  config, secrets = loadConfig(ctx)
+
+  setupHosts(config, secrets)

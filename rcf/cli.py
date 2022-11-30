@@ -5,6 +5,7 @@ import click
 
 import rcf.setup
 import rcf.run
+import rcf.sar
 import rcf.cryption
 import rcf.config
 
@@ -27,5 +28,6 @@ def cli(ctx, config, secrets, verbose) :
 
 cli.add_command(rcf.setup.setup)
 cli.add_command(rcf.run.run)
+cli.add_command(rcf.sar.sar)
 cli.add_command(rcf.cryption.encrypt)
 cli.add_command(rcf.cryption.decrypt)
