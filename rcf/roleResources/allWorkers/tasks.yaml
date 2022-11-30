@@ -10,3 +10,21 @@ files:
   - src: worker
     dest: "{pcfHome}/bin/worker"
     mode: 0755
+  - src: monitor.service.j2
+    dest: "{sysHome}/monitor.service"
+    mode: 0644
+  - src: monitor
+    dest: "{pcfHome}/bin/monitor"
+    mode: 0755
+
+start :
+  - name: reload systemctl
+    cmd: systemctl --user daemon-reload
+  - name: start work load monitor
+    cmd: systemctl --user start monitor.service
+
+stop :
+  - name: reload systemctl
+    cmd: systemctl --user daemon-reload
+  - name: start work load monitor
+    cmd: systemctl --user stop monitor.service

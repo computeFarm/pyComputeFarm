@@ -1,9 +1,0 @@
-#!/bin/bash
-
-# This bash script uses ansible to STOP the configured compute farm
-
-reset
-
-mkdir -p logs
-
-ansible-playbook $* plays/stopComputeFarm --ask-vault-pass

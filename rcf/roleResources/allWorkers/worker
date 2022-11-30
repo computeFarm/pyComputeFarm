@@ -1,7 +1,5 @@
 #!/usr/bin/python
 
-# TODO: echo taskRequest back to taskMaster and cutelogActions
-
 # Register for a class of task and then proceed to run that task sending
 # the output back to the requester.
 
@@ -162,7 +160,8 @@ async def tcpWorker(config) :
   print("Sending task description to taskManager")
   writer.write(json.dumps({
     'type'     : 'worker',
-    'taskType' : workerType
+    'taskType' : workerType,
+    'host'     : hostName
   }).encode())
   await writer.drain()
   writer.write(b"\n")

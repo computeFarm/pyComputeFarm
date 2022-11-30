@@ -1,0 +1,12 @@
+# see:
+# https://unix.stackexchange.com/questions/228277/grouping-systemd-services
+
+[Unit]
+Description=Start a compute farm work load monitor
+
+[Service]
+ExecStart={{ ssh_home }}/.local/pyComputeFarm/bin/monitor -h {{ taskManager.host }} -p {{ taskManager.port }}
+Restart=always
+
+[Install]
+WantedBy=default.target

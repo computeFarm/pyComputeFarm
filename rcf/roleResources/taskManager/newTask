@@ -172,10 +172,17 @@ def setWorkerReturnCode(aCode) :
   print(workerReturnCode)
 
 async def tcpTaskRequest(taskRequest) :
-  reader, writer = await asyncio.open_connection(
-    taskRequest['host'],
-    taskRequest['port']
-  )
+  try :
+    reader, writer = await asyncio.open_connection(
+      taskRequest['host'],
+      taskRequest['port']
+    )
+  except ConnectionRefusedError :
+    print("Could not connect to the taskManager")
+    return
+  except Exception as err :
+    print(f"Exception({err.__class__.__name__}): {str(err)}")
+    return
 
   # send task request
 

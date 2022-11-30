@@ -106,12 +106,12 @@ async def cutelog(jsonLog) :
   await cutelogActionsWriter.drain()
 
 async def cutelogLog(level, msg) :
-  await cutelog({
-    'time'  : time.time(),
-    'name'  : 'taskManager',
-    'level' : level,
-    'msg'   : msg
-  })
+  logBody = msg
+  if isinstance(msg, str) : logBody = { 'msg' : msg }
+  logBody['time'] = time.time()
+  logBody['name'] = 'taskManager'
+  logBody['level'] = level
+  await cutelog(logBody)
 
 async def cutelogInfo(msg) :
   await cutelogLog('info', msg)
@@ -120,6 +120,7 @@ async def cutelogDebug(msg) :
   await cutelogLog('debug', msg)
 
 workerQueues = {}
+hostLoads    = {}
 
 async def handleConnection(reader, writer) :
   addr = writer.get_extra_info('peername')
@@ -144,13 +145,49 @@ async def handleConnection(reader, writer) :
     await writer.wait_closed()
     return
 
-  # IF task is a worker... place the reader/writer in a queue
+  # IF task is a monitor... start recording workloads for this host
+  if 'type' in task and task['type'] == 'monitor' :
+    if 'host' in task :
+      monitoredHost = task['host']
+      await cutelogDebug(f"Got a new monitor connection from {monitoredHost}...")
+      while not reader.at_eof() :
+        try :
+          data = await reader.readline()
+        except :
+          await cutelogDebug(f"{task['host']} monitor close connection...")
+          break
+        message = data.decode()
+        jsonData = json.loads(message)
+        scaled   = jsonData['wlOne']/(jsonData['numCpus']*jsonData['scale'])
+        jsonData['name']   = 'monitor'
+        jsonData['level']  = 'debug'
+        jsonData['scaled'] = scaled
+        await cutelog(jsonData)
+        hostLoads[monitoredHost] = scaled
+
+    cutelogDebug(f"Closing monitor connection ...")
+    writer.close()
+    await writer.wait_closed()
+    return
+
+  # ELSE IF task is a worker... place the reader/writer in a worker queue
   if 'type' in task and task['type'] == 'worker' :
+    if 'host' not in task :
+      await cutelogDebug(f"new worker without a host... dropping the connection...")
+      await cutelogDebug(task)
+      writer.close()
+      await writer.wait_close()
+      return
+    workerHost = task['host']
+
     await cutelogDebug(f"Got a new worker connection...")
     if taskType not in workerQueues :
-      workerQueues[taskType] = asyncio.Queue()
-    await cutelogDebug(f"Queing {taskType!r} worker")
-    await workerQueues[taskType].put({
+      workerQueues[taskType] = {}
+    if workerHost not in workerQueues[taskType] :
+      if workerHost not in hostLoads : hostLoads[workerHost] = 1000
+      workerQueues[taskType][workerHost] = asyncio.Queue()
+    await cutelogDebug(f"Queing {taskType!r} worker on {workerHost}")
+    await workerQueues[taskType][workerHost].put({
       'taskType' : taskType,
       'addr'     : addr,
       'reader'   : reader,
@@ -160,8 +197,8 @@ async def handleConnection(reader, writer) :
     return
 
   # ELSE task is a request... get a worker and echo the results
-  if taskType not in workerQueues :
-    cutelogDebug(f"No specialist worker found for the task type: [{taskType}]")
+  if taskType not in workerQueues or len(workerQueues[taskType]) < 1 :
+    await cutelogDebug(f"No specialist worker found for the task type: [{taskType}]")
     writer.write(
       f"No specialist worker found for the task type: [{taskType}]".encode()
     )
@@ -171,8 +208,13 @@ async def handleConnection(reader, writer) :
     return
 
   while True :
-    taskWorker = await workerQueues[taskType].get()
-    workerQueues[taskType].task_done()
+    workerHosts = list(workerQueues[taskType].keys())
+    leastLoadedHost = workerHosts.pop(0)
+    for aHost in workerHosts :
+      if hostLoads[aHost] < hostLoads[leastLoadedHost] :
+        leastLoadedHost = aHost
+    taskWorker = await workerQueues[taskType][leastLoadedHost].get()
+    workerQueues[taskType][leastLoadedHost].task_done()
 
     try :
       workerAddr   = taskWorker['addr']
