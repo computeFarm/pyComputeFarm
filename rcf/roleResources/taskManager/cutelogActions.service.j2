@@ -5,7 +5,7 @@ Before=taskManager.service
 [Service]
 Environment="DISPLAY=:0"
 Environment="XAUTHORITY={{ ssh_home }}/.Xauthority"
-ExecStart={{ ssh_home }}/.local/bin/cla
+ExecStart={{ ssh_home }}/.local/bin/cla --base_dir {{ ssh_home }}/{{ files.dest }}
 Restart=always
 
 [Install]

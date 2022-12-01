@@ -95,6 +95,9 @@ def createFilesFor(aRole, rFiles, rVars, aHost, aDir, config, secrets, logFile) 
   logFile.write(f"creating files for {aRole} on {aHost}\n")
   for aFile in rFiles :
     contents = loadResourceFor(aRole, aFile['src'])
+    if 'files' in config :
+      if 'dest' in config['files'] :
+        config['files']['dest'] = config['files']['dest'].format_map(rVars)
     theTargetFile = aDir / aFile['dest'].format_map(rVars)
     if aFile['src'].endswith('.j2') :
       jinjaFile(contents, theTargetFile, config, secrets, logFile)

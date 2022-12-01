@@ -64,10 +64,10 @@ if 'host' not in taskManager :
 if 'port' not in taskManager :
   taskManager['port'] = 8888
 
-def defaultLogParser(logName, logMsg) :
+def defaultLogParser(taskRequest, logMsg) :
   return {
     'time'  : time.time(),
-    'name'  : logName,
+    'name'  : taskRequest['taskName'],
     'level' : 'debug',
     'msg'   : logMsg
   }
@@ -127,7 +127,6 @@ async def jsonLog(writer, aLogDict) :
   if 'time'  not in aLogDict : aLogDict['time']  = time.time()
   if 'level' not in aLogDict : aLogDict['level'] = 'debug'
   writer.write(json.dumps(aLogDict).encode())
-  await writer.drain()
   writer.write(b'\n')
   await writer.drain()
 
@@ -237,7 +236,7 @@ async def tcpWorker(config) :
         aLine = await procStdOut.readline()
         aLine = aLine.decode().strip()
         #print(f'Sending: [{aLine}]')
-        await jsonLog(writer, logParserFunc(taskRequest['taskName'], aLine))
+        await jsonLog(writer, logParserFunc(taskRequest, aLine))
       await proc.wait()
       print(f"Finished task for [{workerType}] returncode = {proc.returncode}")
       await jsonLog(writer, {
