@@ -141,13 +141,15 @@ def isHostUp(aHost) :
   pingCmd.terminate(force=True)
   return pResult == 1
 
-def runHosts(config, secrets) :
+def runHosts(someHosts, config, secrets) :
+
   gConfig = config['globalConfig']
   gTasks  = loadTasksFor()
   gVars   = {}
   if 'vars' in gTasks :
     mergeVars(gVars, gTasks['vars'])
   hList = gConfig['hostList']
+  if someHosts : hList = list(someHosts)
   mountProcesses = []
   unmountThreads = []
   startThreads   = []
@@ -188,9 +190,14 @@ def runHosts(config, secrets) :
   for aProcess in mountProcesses : aProcess.join()
 
 @click.command()
+@click.argument('hosts', nargs=-1)
 @click.pass_context
-def run(ctx) :
+def run(ctx, hosts) :
+  """Run HOSTS.
+
+  If no hosts are provided, run all configured hosts that are up.
+  """
 
   config, secrets = loadConfig(ctx)
 
-  runHosts(config, secrets)
+  runHosts(hosts, config, secrets)

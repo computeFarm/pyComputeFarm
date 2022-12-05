@@ -112,6 +112,8 @@ def rsyncFilesFor(aRole, rRsync, rVars, aHost, aDir, config, secrets, logFile) :
   logFile.write(f"rsyncing files for {aRole} on {aHost}\n")
   homeDir = Path.home()
   for anRsync in rRsync :
+    if 'exceptFor' in anRsync and aHost in anRsync['exceptFor'] :
+      continue
     targetDir = aDir / anRsync['dest'].format_map(rVars)
     srcDir    = homeDir / anRsync['src'].format_map(rVars)
     rsyncCmd = pexpect.spawn(
@@ -297,7 +299,7 @@ def setupAHost(tmpDir, aHost, gVars, config, secrets) :
     logFile.write(f"Finished setting up host {aHost}")
   print(f"Finished setting up host {aHost}")
 
-def setupHosts(config, secrets) :
+def setupHosts(someHosts, config, secrets) :
   tmpDir = Path(tempfile.mkdtemp(prefix='rcf-'))
 
   gConfig = config['globalConfig']
@@ -307,6 +309,7 @@ def setupHosts(config, secrets) :
     mergeVars(gVars, gTasks['vars'])
 
   hList = gConfig['hostList']
+  if someHosts : hList = list(someHosts)
   workThreads = []
   for aHost in hList :
     workThreads.append(Thread(target=setupAHost, args=[
@@ -316,9 +319,14 @@ def setupHosts(config, secrets) :
   for aThread in workThreads : aThread.join()
 
 @click.command()
+@click.argument('hosts', nargs=-1)
 @click.pass_context
-def setup(ctx) :
+def setup(ctx, hosts) :
+  """Setup HOSTS.
+
+  If no hosts are provided, setup all configured hosts that are up.
+  """
 
   config, secrets = loadConfig(ctx)
 
-  setupHosts(config, secrets)
+  setupHosts(hosts, config, secrets)
