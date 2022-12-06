@@ -1,0 +1,14 @@
+# see:
+# https://unix.stackexchange.com/questions/228277/grouping-systemd-services
+
+[Unit]
+Description=Start a compute farm GCC Native ARM Worker ({{aWorker}})
+PartOf=gccARM-Worker.target
+
+[Service]
+WorkingDirectory={{ ssh_home }}/.local/pyComputeFarm/files
+ExecStart={{ ssh_home }}/.local/pyComputeFarm/bin/worker {{ aWorker }} {{ ssh_home }}/.local/pyComputeFarm/config/gccARM-Config.yaml
+Restart=always
+
+[Install]
+WantedBy=default.target

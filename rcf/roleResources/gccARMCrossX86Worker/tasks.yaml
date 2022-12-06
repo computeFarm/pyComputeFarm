@@ -1,0 +1,38 @@
+
+targetDirs:
+  - texmf
+  - "{sysHome}"
+  - "{pcfHome}/bin"
+  - "{pcfHome}/lib"
+  - "{pcfHome}/config"
+
+files:
+  - src: gccARMCrossX86-Worker.target.j2
+    dest: "{sysHome}/gccARMCrossX86-Worker.target"
+    mode: 0644
+  - src: gccARMCrossX86-LogParser.py.j2
+    dest: "{pcfHome}/lib/gccARMCrossX86-LogParser.py"
+    mode: 0644
+  - src: gccARMCrossX86-Config.yaml.j2
+    dest: "{pcfHome}/config/gccARMCrossX86-Config.yaml"
+    mode: 0644
+
+list:
+  - src: gccARMCrossX86-Worker.service.j2
+    dest: "{sysHome}/{aWorker}.service"
+    mode: 0644
+
+start:
+  - name: reload systemctl
+    cmd: systemctl --user daemon-reload
+  - name: start gccARMCrossX86-Workers
+    cmd: systemctl --user start gccARMCrossX86-Worker.target
+
+stop:
+  - name: reload systemctl
+    cmd: systemctl --user daemon-reload
+  - name: stop gccARMCrosX86-Workers
+    cmd: systemctl --user stop gccARMCrossX86-Worker.target
+
+
+

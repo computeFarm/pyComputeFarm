@@ -1,0 +1,37 @@
+
+targetDirs:
+  - texmf
+  - "{sysHome}"
+  - "{pcfHome}/bin"
+  - "{pcfHome}/lib"
+  - "{pcfHome}/config"
+
+files:
+  - src: gccARM-Worker.target.j2
+    dest: "{sysHome}/gccARM-Worker.target"
+    mode: 0644
+  - src: gccARM-LogParser.py.j2
+    dest: "{pcfHome}/lib/gccARM-LogParser.py"
+    mode: 0644
+  - src: gccARM-Config.yaml.j2
+    dest: "{pcfHome}/config/gccARM-Config.yaml"
+    mode: 0644
+
+list:
+  - src: gccARM-Worker.service.j2
+    dest: "{sysHome}/{aWorker}.service"
+    mode: 0644
+
+
+start:
+  - name: reload systemctl
+    cmd: systemctl --user daemon-reload
+  - name: start gccARM-Workers
+    cmd: systemctl --user start gccARM-Worker.target
+
+stop:
+  - name: reload systemctl
+    cmd: systemctl --user daemon-reload
+  - name: stop gccARM-Workers
+    cmd: systemctl --user stop gccARM-Worker.target
+

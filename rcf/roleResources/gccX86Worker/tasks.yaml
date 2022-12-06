@@ -1,0 +1,36 @@
+
+targetDirs:
+  - texmf
+  - "{sysHome}"
+  - "{pcfHome}/bin"
+  - "{pcfHome}/lib"
+  - "{pcfHome}/config"
+
+files:
+  - src: gccX86-Worker.target.j2
+    dest: "{sysHome}/gccX86-Worker.target"
+    mode: 0644
+  - src: gccX86-LogParser.py.j2
+    dest: "{pcfHome}/lib/gccX86-LogParser.py"
+    mode: 0644
+  - src: gccX86-Config.yaml.j2
+    dest: "{pcfHome}/config/gccX86-Config.yaml"
+    mode: 0644
+
+list:
+  - src: gccX86-Worker.service.j2
+    dest: "{sysHome}/{aWorker}.service"
+    mode: 0644
+
+start:
+  - name: reload systemctl
+    cmd: systemctl --user daemon-reload
+  - name: start gccX86-Workers
+    cmd: systemctl --user start gccX86-Worker.target
+
+stop:
+  - name: reload systemctl
+    cmd: systemctl --user daemon-reload
+  - name: stop gccX86-Workers
+    cmd: systemctl --user stop gccX86-Worker.target
+

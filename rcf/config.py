@@ -198,10 +198,15 @@ def decrypt(eContents, passPhrase) :
 # Resource management
 #
 def loadResourceFor(aRole, aResource) :
-  if aRole :
-    contents = importlib.resources.read_text('rcf.roleResources.'+aRole, aResource)
-  else :
-    contents = importlib.resources.read_text('rcf.roleResources', aResource)
+  try :
+    if aRole :
+      contents = importlib.resources.read_text('rcf.roleResources.'+aRole, aResource)
+    else :
+      contents = importlib.resources.read_text('rcf.roleResources', aResource)
+  except Exception as err:
+    print(f"ERROR loging resourceFor [{aRole}] [{aResource}]")
+    print(repr(err))
+    sys.exit(1)
   return contents
 
 def loadTasksFor(aRole=None, config={}) :

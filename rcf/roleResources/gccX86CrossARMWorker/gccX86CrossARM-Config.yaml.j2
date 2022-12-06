@@ -1,0 +1,16 @@
+# This is the task worker description of the {{ aWorker }} command
+
+# How to contact the TaskManager
+taskManager:
+  host: {{ taskManager.host }}
+  port: {{ taskManager.port}}
+
+logParser: gccX86CrossARM-LogParser.py
+workerType: gccARM
+
+cmd:
+  prefix: {{ gccX86CrossARMBin }}
+
+# dir: aPath
+
+verbose: true
