@@ -1,0 +1,46 @@
+
+# This is the log parser for the simple Z3 theorem prover Worker
+
+def logParser(taskRequest, logMsg) :
+  return {
+  	'name'  : taskRequest['taskName'],
+  	'level' : 'info',
+  	'msg'   : logMsg
+  }
+
+"""
+import re
+# import time
+
+contextErrorRE = re.compile(r'tex error on line (\d+) in file (\S+):')
+errorFound = False
+
+def logParser(taskRequest, logMsg) :
+  global errorFound
+  logBody = {
+    'name'  : taskRequest['taskName'],
+    'level' : 'error',
+    'msg'   : logMsg
+  }
+  if -1 < logMsg.find('error') :
+    errorFound = True
+    logMatch = contextErrorRE.search(logMsg)
+    if logMatch :
+      lineNum = logMatch.group(1)
+      filePath = logMatch.group(2)
+      if 'dir' in taskRequest :
+        logBody['dir'] = taskRequest['dir']
+      logBody['file'] = filePath
+      logBody['line'] = int(lineNum)
+      return logBody
+    else :
+      return logBody
+  elif -1 < logMsg.find('is not found') :
+    logBody['level'] = 'warning'
+    return logBody
+  elif errorFound :
+    if -1 < logMsg.find('>>') :
+      return logBody
+  logBody['level'] = 'info'
+  return logBody
+"""

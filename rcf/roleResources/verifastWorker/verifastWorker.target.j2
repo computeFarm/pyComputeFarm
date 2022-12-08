@@ -1,0 +1,7 @@
+# see:
+# https://unix.stackexchange.com/questions/228277/grouping-systemd-services
+
+[Unit]
+Description=Start a collection of compute farm Verifast Workers
+{% for aWorker in workers.verifastWorker.list %}Wants={{ aWorker }}.service
+{% endfor %}

@@ -1,0 +1,16 @@
+# This is the task worker description of the {{ aWorker }} command
+
+# How to contact the TaskManager
+taskManager:
+  host: {{ taskManager.host }}
+  port: {{ taskManager.port}}
+
+logParser: z3LogParser
+workerType: z3
+
+cmd:
+  prefix: {{ binaries.z3 }}
+
+# dir: aPath
+
+verbose: true

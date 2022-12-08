@@ -1,0 +1,16 @@
+# This is the task worker description of the {{ aWorker }} command
+
+# How to contact the TaskManager
+taskManager:
+  host: {{ taskManager.host }}
+  port: {{ taskManager.port}}
+
+logParser: verifastLogParser
+workerType: verifast
+
+cmd:
+  prefix: {{ binaries.verifast }}
+
+# dir: aPath
+
+verbose: true
