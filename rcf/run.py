@@ -1,3 +1,14 @@
+"""
+The click command to run a computeFarm.
+
+This command expects an (optional) list of hosts on which this computeFarm
+should be run.
+
+If no list is provided, all known (configured) hosta that are currently running
+are used.
+
+
+"""
 
 import click
 import datetime

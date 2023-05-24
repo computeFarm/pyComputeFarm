@@ -1,3 +1,13 @@
+"""
+The click command used to setup and run a computeFarm.
+
+Expects a (optional) list of hosts to be included in this run of the
+computeFarm.
+
+If no list of hosts is provided, all known (configured) hosts that are currently
+running are used.
+"""
+
 
 import click
 

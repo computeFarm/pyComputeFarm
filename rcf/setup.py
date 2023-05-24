@@ -1,3 +1,20 @@
+"""
+The click command to setup a computeFarm.
+
+This command expects an (optional) list of hosts on which the computeFarm will
+be setup.
+
+If no list of hosts is provided, all known (configured) hosts that are currently
+running are used.
+
+We use rsync to move files to the remote computers. We use ssh to run commands
+on the remote computers.
+
+Both ssh and rsync are used via the python package pexpect to ensure (for
+example) password prompts can be dealt with programmatically without the user's
+intervention.
+"""
+
 
 import click
 import datetime
@@ -44,10 +61,16 @@ from rcf.config import (
 # case, by the OS).
 
 def copyFile(fileContents, toPath) :
+  """
+  Copy a file from the roleResources to a (local) staging directory.
+  """
   with open(toPath, 'w') as toFile :
     toFile.write(fileContents)
 
 def jinjaFile(fromTemplate, toPath, config, secrets, logFile) :
+  """
+  Expand a Jinja2 template into a file in the (local) staging directory.
+  """
   env = {}
   mergeYamlData(env, config,  '.')
   mergeYamlData(env, secrets, '.')
@@ -69,6 +92,9 @@ def createRunCommandFor(
   aRole, rCmds, rVars, theTargetFile,
   aHost, aDir, config, secrets, logFile
 ) :
+  """
+  Create a run command (shell script) for (eventual) use on a remote computer.
+  """
   cmdTemplate = """#!/bin/sh
 
   {% for aCmd in rCmds %}
@@ -92,6 +118,15 @@ def createRunCommandFor(
   theTargetFile.chmod(0o0755)
 
 def createFilesFor(aRole, rFiles, rVars, aHost, aDir, config, secrets, logFile) :
+  """
+  Create a collection of (local) files for eventual use on a remote computer
+  using the resources in a given package in the collection of roleResources
+  packages.
+
+  Resources that end in `.j2` are expanded using `jinjafile`.
+
+  Resources that do not end in `.j2` are simply copied using `copyFile`.
+  """
   logFile.write(f"creating files for {aRole} on {aHost}\n")
   for aFile in rFiles :
     contents = loadResourceFor(aRole, aFile['src'])
@@ -109,6 +144,10 @@ def createFilesFor(aRole, rFiles, rVars, aHost, aDir, config, secrets, logFile) 
     theTargetFile.chmod(theTargetMode)
 
 def rsyncFilesFor(aRole, rRsync, rVars, aHost, aDir, config, secrets, logFile) :
+  """
+  Rsync (using pexpect) a collection of files from the local computer to a
+  remote host.
+  """
   logFile.write(f"rsyncing files for {aRole} on {aHost}\n")
   homeDir = Path.home()
   for anRsync in rRsync :
@@ -274,6 +313,9 @@ def runCommandsForHost(aHost, cmdPaths, config, secrets, logFile) :
     else : break
 
 def isHostUp(aHost) :
+  """
+  Ping a host (using the pexpect tools) to ensure it is currently running.
+  """
   pingCmd = pexpect.spawn(f"ping {aHost}")
   pResult = pingCmd.expect_exact([
     " Destination Host Unreachable",
@@ -283,6 +325,12 @@ def isHostUp(aHost) :
   return pResult == 1
 
 def setupAHost(tmpDir, aHost, gVars, config, secrets) :
+  """
+  This is run in each thread associated to a particular host.
+
+  It setups up logging, and then runs `createLocalResourcesForHost` and then
+  runs the commands associated with a host's configuration.
+  """
   if not isHostUp(aHost) :
     print(f"Host {aHost} is not up")
     return
@@ -300,6 +348,11 @@ def setupAHost(tmpDir, aHost, gVars, config, secrets) :
   print(f"Finished setting up host {aHost}")
 
 def setupHosts(someHosts, config, secrets) :
+  """
+  Walk through the specified (or known) hosts creating a new Python thread for
+  each host running `setupAHost` in the thread associated with each host.
+  """
+
   tmpDir = Path(tempfile.mkdtemp(prefix='rcf-'))
 
   gConfig = config['globalConfig']
