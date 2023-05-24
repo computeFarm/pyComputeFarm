@@ -1,0 +1,10 @@
+#!/bin/bash
+
+#mkdir -p docs
+#cd docs
+
+#for aFile in ../cfdoit/*.py ; do
+#  ../.venv/bin/python -m pydoc $aFile > $(basename $aFile .py).txt
+#done
+
+.venv/bin/python -m pydoc -b rcf/*.py
