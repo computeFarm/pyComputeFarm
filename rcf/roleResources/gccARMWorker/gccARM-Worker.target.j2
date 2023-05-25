@@ -1,7 +1,0 @@
-# see:
-# https://unix.stackexchange.com/questions/228277/grouping-systemd-services
-
-[Unit]
-Description=Start a collection of compute farm gcc Workers
-{% for aWorker in workers.gccARMWorker.list %}Wants={{ aWorker }}.service
-{% endfor %}
