@@ -108,7 +108,9 @@ async def cutelogDebug(msg) :
   await cutelogLog('debug', msg)
 
 workerQueues = {}
+workerTypes  = {}
 hostLoads    = {}
+hostTypes    = {}
 
 async def handleConnection(reader, writer) :
   """
@@ -116,28 +118,39 @@ async def handleConnection(reader, writer) :
 
   There are three types of JSON task messages:
 
-  - new task request
-
   - monitor load information
 
   - worker registration
 
-  A JSON task message consists of:
+  - worker query
+
+  - new task request
+
+  The JSON messages consists of:
 
   - taskType  (used by both worker registration and new task requests to choose
                the correct worker sub-queue)
 
-  - type      (one of `monitor`, `worker`, `taskRequest`)
+  - type      (one of `monitor`, `worker`, `workerQuery`, `taskRequest`)
   
-  - host      (monifor messages, the name of the monitored machine)
+  - host      (monitor messages, the name of the monitored machine)
+
+  - platform  (initial monitor message, the type of OS being monitored
+               (`platform.system().lower()`)) 
   
-  - wlOne     (monitor messages, work load average over last minute)
-  - wlFive    (monitor messages, work load average over last five minutes)
-  - wlFifteen (monitor messages, work load average over last fifteen minutes)
+  - cpuType   (initial monitor message, the type of CPU being monitored
+               (`platform.machine().lower()`))
   
-  - numCpus   (monitor messages, number of cpu/cores)
+  - wlOne     (monitor messages stream, work load average over last minute)
+  - wlFive    (monitor messages stream, work load average over last five
+               minutes)
+  - wlFifteen (monitor messages stream, work load average over last fifteen
+               minutes)
   
-  - scale     (monitor messages, a scale factor configured for this machine)
+  - numCpus   (monitor messages stream, number of cpu/cores)
+  
+  - scale     (monitor messages stream, a scale factor configured for this
+               machine)
 
   - taskName  (taskRequest messages, the name of the requested task for use by
                the cuteLogActions GUI)
@@ -162,11 +175,36 @@ async def handleConnection(reader, writer) :
   2. Worker registration (we simply add this this worker/connection to the queue
      of existing workers for later use).
 
-  3. New task request (we find an existing worker/connection which matches the
+  3. Worker query (return a dict summary of the available workers. The
+     `workerTypes` key is a copy of the `workerTypes` global variable. The
+     `hostTypes` is a copy of the `platform` and `cpu` keys in the `hostTypes`
+     global.)
+
+  4. New task request (we find an existing worker/connection which matches the
      requested task, forward the task request onto the worker, and then echo the
      resulting "stream" of "log" messages back to both the task originator as
      well as the cuteLogActions GUI. When the worker finishes, we close this
      connection)
+
+  ------------------------------------------------------------------------------
+
+  The task manager, maintains four globals, `workerQueues`, `workerTypes`,
+  `hostLoads` and `hostTypes`.
+
+  - `workerQueues` : is a dict of dicts indexed by `workerType`s and
+                     `workerHost`s. Each entry is a worker waiting for an
+                     appropriate task.
+
+  - `workerTypes` : is a dict indexed by `workerType`. Each entry is a list of
+                    the tools supported by this `workerType`.
+
+  - `hostLoads` : is a dict indexed by `workerHost`. Each entry contains the
+                  latest scaled load average for use when choosing the next
+                  worker to be given a task.
+
+  - `hostTypes` : is a dict of dict indexed by `workerPlatform` and `workerCPU`.
+                  Each entry contains a set of known hosts of the appropriate
+                  platform and cpu type.
   """
   addr = writer.get_extra_info('peername')
   await cutelogDebug(f"Handling new connection from {addr!r}")
@@ -192,23 +230,49 @@ async def handleConnection(reader, writer) :
 
   # IF task is a monitor... start recording workloads for this host
   if 'type' in task and task['type'] == 'monitor' :
-    if 'host' in task :
-      monitoredHost = task['host']
-      await cutelogDebug(f"Got a new monitor connection from {monitoredHost}...")
-      while not reader.at_eof() :
-        try :
-          data = await reader.readline()
-        except :
-          await cutelogDebug(f"{task['host']} monitor close connection...")
-          break
-        message = data.decode()
-        jsonData = json.loads(message)
-        scaled   = jsonData['wlOne']/(jsonData['numCpus']*jsonData['scale'])
-        jsonData['name']   = 'monitor'
-        jsonData['level']  = 'debug'
-        jsonData['scaled'] = scaled
-        await cutelog(jsonData)
-        hostLoads[monitoredHost] = scaled
+    if 'host' not in task or 'platform' not in task or 'cpuType' not in task :
+      await cutelogDebug(f"new monitor without a host, platform, or cpuType... dropping the connection...")
+      await cutelogDebug(task)
+      writer.close()
+      await writer.wait_close()
+      return
+
+    monitoredHost = task['host']
+    mPlatform     = task['platform']
+    mCpuType      = task['cpuType']
+    if mPlatform not in hostTypes            : hostTypes[mPlatform] = {}
+    if mCpuType  not in hostTypes[mPlatform] : hostTypes[mPlatform][mCpuType] = {}
+    if monitoredHost not in hostTypes[mPlatform][mCpuType] :
+      hostTypes[mPlatform][mCpuType][monitoredHost] = True
+    await cutelogDebug(f"Got a new monitor connection from {monitoredHost}...")
+    while not reader.at_eof() :
+      try :
+        data = await reader.readline()
+      except :
+        await cutelogDebug(f"{task['host']} monitor close connection...")
+        break
+      message = data.decode()
+      jsonData = json.loads(message)
+      scaled   = jsonData['wlOne']/(jsonData['numCpus']*jsonData['scale'])
+      jsonData['name']   = 'monitor'
+      jsonData['level']  = 'debug'
+      jsonData['scaled'] = scaled
+      await cutelog(jsonData)
+      hostLoads[monitoredHost] = scaled
+
+    # clean up the hostTypes and hostLoads global variables by removing this
+    # monitored host
+    if mPlatform in hostTypes :
+      if mCpuType in hostTypes[mPlatform] :
+        if monitoredHost in hostTypes[mPlatform][mCpuType] :
+          del hostTypes[mPlatform][mCpuType][monitoredHost]
+          if not hostTypes[mPlatform][mCpuType] :
+            del hostTypes[mPlatform][mCpuType]
+            if not hostTypes[mPlatform] :
+              del hostTypes[mPlatform]
+
+    if monitoredHost in hostLoads :
+      del hostLoads[monitoredHost]
 
     cutelogDebug(f"Closing monitor connection ...")
     writer.close()
@@ -238,6 +302,20 @@ async def handleConnection(reader, writer) :
       'reader'   : reader,
       'writer'   : writer
     })
+    await cutelogDebug("Waiting for a new connection...")
+    return
+
+  # ELSE IF task is a query about types of workers... check the worker queue
+  if 'type' in task and task['type'] == 'workerQuery' :
+    await cuteLogDebug(f"Got a worker query connection...")
+    # collect the host type information (platform, cpuType)
+    lHostTypes = {}
+    for pKey, pValue in hostTypes.items() :
+      for cKey, cValue in pValue.items() :
+        if cValue :
+          if pKey not in lHostTypes : lHostTypes[pKey] = {}
+          if cKey not in lHostTypes[pKey] :lHostTypes[pKey][cKey] = True
+    # ....
     await cutelogDebug("Waiting for a new connection...")
     return
 

@@ -90,7 +90,9 @@ def runMonitor() :
     writer.write(json.dumps({
       'type'     : 'monitor',
       'taskType' : 'monitor',
-      'host'     : hostName
+      'host'     : hostName,
+      'platform' : platform.system().lower(),
+      'cpuType'  : platform.machine().lower()
     }).encode())
     writer.write(b"\n")
     await writer.drain()
