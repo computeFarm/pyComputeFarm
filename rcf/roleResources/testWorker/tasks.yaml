@@ -10,7 +10,7 @@ files:
     dest: "{sysHome}/testWorker.target"
     mode: 0644
 
-list:
+workers:
   - src: runnerLogParser.py.j2
     dest: "{pcfHome}/lib/runnerLogParser-{aWorker}.py"
     mode: 0644

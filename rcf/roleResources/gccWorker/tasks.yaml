@@ -14,8 +14,8 @@ files:
     dest: "{pcfHome}/lib/gcc-LogParser.py"
     mode: 0644
 
-platforms:
-  - src: "gcc-Config-{platform}-{cpuType}.yaml.j2"
+platformCpus:
+  - src: "gcc-Config-{aPlatformCpu}.yaml.j2"
     dest: "{pcfHome}/config/gcc-Config.yaml"
     mode: 0644
 

@@ -95,8 +95,10 @@ def runWorker() :
 
   - workerType: (the name/type of this worker)
 
-  - cmd:
-      prefix: (the command to be run for any task)
+  - availableTools: (a set of commands which this worker understands/supports)
+
+  - aliases: (a dict of command aliases which can be used in any collection of
+              actions)
 
   - env: (a python dict containing the task command's (key: value) environment)
 
@@ -162,26 +164,8 @@ def runWorker() :
     print("Using the default logParser")
     logParserFunc = defaultLogParser
 
-  if 'cmd' not in config :
-    config['cmd'] = {}
-
-  cmd = config['cmd']
-
-  if 'prefix' not in cmd :
-    cmd['prefix'] = []
-  if type(cmd['prefix']) is str :
-    cmd['prefix'] = cmd['prefix'].split()
-  if type(cmd['prefix']) is not list :
-    print("The cmd prefix MUST be either a string or an array")
-    sys.exit(1)
-
-  if 'suffix' not in cmd :
-    cmd['suffix'] = []
-  if type(cmd['suffix']) is str :
-    cmd['suffix'] = cmd['suffix'].split()
-  if type(cmd['suffix']) is not list :
-    print("The cmd suffix MUST be either a string or an array")
-    sys.exit(1)
+  if 'availableTools' not in config :
+    config['availableTools'] = {}
 
   if 'env' not in config :
     config['env'] = {}
@@ -234,9 +218,10 @@ def runWorker() :
     # send task specialty
     print("Sending task description to taskManager")
     writer.write(json.dumps({
-      'type'     : 'worker',
-      'taskType' : workerType,
-      'host'     : hostName
+      'type'          : 'worker',
+      'taskType'      : workerType,
+      'host'          : hostName,
+      'avaiableTools' : config['availableTools']
     }).encode())
     await writer.drain()
     writer.write(b"\n")
@@ -273,6 +258,9 @@ def runWorker() :
           localEnv[aKey] = aValue
         taskEnv = localEnv
 
+
+      TODO: need to rework this to use compileActionScript
+      TODO: need to combine worker and task environment
       taskCmd = []
       cCmd = config['cmd']
       for anArg in cCmd['prefix'] :

@@ -15,7 +15,7 @@ files:
     dest: "{pcfHome}/config/verifastConfig.yaml"
     mode: 0644
 
-list:
+workers:
   - src: verifastWorker.service.j2
     dest: "{sysHome}/{aWorker}.service"
     mode: 0644

@@ -15,7 +15,7 @@ files:
     dest: "{pcfHome}/config/z3Config.yaml"
     mode: 0644
 
-list:
+workers:
   - src: z3Worker.service.j2
     dest: "{sysHome}/{aWorker}.service"
     mode: 0644

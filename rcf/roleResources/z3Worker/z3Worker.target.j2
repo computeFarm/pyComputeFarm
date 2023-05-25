@@ -3,5 +3,5 @@
 
 [Unit]
 Description=Start a collection of compute farm Z3 Workers
-{% for aWorker in workers.z3Worker.list %}Wants={{ aWorker }}.service
+{% for aWorker in workers.z3Worker.workers %}Wants={{ aWorker }}.service
 {% endfor %}

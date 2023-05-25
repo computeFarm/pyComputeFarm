@@ -16,7 +16,7 @@ files:
     dest: "{pcfHome}/config/contextConfig.yaml"
     mode: 0644
 
-list:
+workers:
   - src: contextWorker.service.j2
     dest: "{sysHome}/{aWorker}.service"
     mode: 0644

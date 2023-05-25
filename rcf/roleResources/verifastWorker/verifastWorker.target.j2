@@ -3,5 +3,5 @@
 
 [Unit]
 Description=Start a collection of compute farm Verifast Workers
-{% for aWorker in workers.verifastWorker.list %}Wants={{ aWorker }}.service
+{% for aWorker in workers.verifastWorker.workers %}Wants={{ aWorker }}.service
 {% endfor %}

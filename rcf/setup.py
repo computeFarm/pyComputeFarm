@@ -129,12 +129,13 @@ def createFilesFor(aRole, rFiles, rVars, aHost, aDir, config, secrets, logFile) 
   """
   logFile.write(f"creating files for {aRole} on {aHost}\n")
   for aFile in rFiles :
-    contents = loadResourceFor(aRole, aFile['src'])
+    aSrcFile = aFile['src'].format_map(rVars)
+    contents = loadResourceFor(aRole, aSrcFile)
     if 'files' in config :
       if 'dest' in config['files'] :
         config['files']['dest'] = config['files']['dest'].format_map(rVars)
     theTargetFile = aDir / aFile['dest'].format_map(rVars)
-    if aFile['src'].endswith('.j2') :
+    if aSrcFile.endswith('.j2') :
       jinjaFile(contents, theTargetFile, config, secrets, logFile)
     else :
       copyFile(contents, theTargetFile)
@@ -215,13 +216,35 @@ def createLocalResourcesFor(aRole, gVars, aHost, aDir, config, secrets, logFile)
       aHost, aDir, config, secrets, logFile
     )
 
+  if 'platformCpus' in config :
+    if 'platformCpus' in rTasks :
+      for aPlatformCpu in config['platformCpus'] :
+        rVars['aPlatformCpu'] = aPlatformCpu
+        config['aPlatformCpu'] = aPlatformCpu
+        createFilesFor(
+          aRole, rTasks['platformCpus'], rVars,
+          aHost, aDir, config, secrets, logFile
+        )
+
   if 'workers' in config :
     if aRole in config['workers'] :
-      if 'list' in rTasks and 'list' in config['workers'][aRole] :
-        for aWorker in config['workers'][aRole]['list'] :
+      if 'workers' in rTasks and 'workers' in config['workers'][aRole] :
+        for aWorker in config['workers'][aRole]['workers'] :
           rVars['aWorker'] = aWorker
           config['aWorker'] = aWorker
-          createFilesFor(aRole, rTasks['list'], rVars, aHost, aDir, config, secrets, logFile)
+          createFilesFor(
+            aRole, rTasks['workers'], rVars,
+            aHost, aDir, config, secrets, logFile
+          )
+          if 'platformCpus' in config :
+            if 'platformCpuWorkers' in rTasks :
+              for aPlatformCpu in config['platformCpus'] :
+                rVars['aPlatformCpu'] = aPlatformCpu
+                config['aPlatformCpu'] = aPlatformCpu
+                createFilesFor(
+                  aRole, rTasks['platformCpuWorkers'], rVars,
+                  aHost, aDir, config, secrets, logFile
+                )
 
   return cmdTypes
 
