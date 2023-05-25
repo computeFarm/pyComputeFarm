@@ -1,0 +1,30 @@
+# This is the task worker description of the {{ aWorker }} command
+
+# How to contact the TaskManager
+taskManager:
+  host: {{ taskManager.host }}
+  port: {{ taskManager.port}}
+
+logParser: gcc-LogParser.py
+workerType: gcc
+
+availableTools:
+  - mkdir
+  - gppArm
+  - gppAmd
+  - gccArm
+  - gccAmd
+  - ar
+  - curl
+  - wget
+  - tar
+
+aliases:
+  gppArm: g++
+  gppAmd: x86_64-linux-gnu-g++
+  gccArm: gcc
+  gccAmd: x86_64-linux-gnu-gcc
+
+# dir: aPath
+
+verbose: true
