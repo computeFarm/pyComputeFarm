@@ -4,7 +4,7 @@ Wants=cutelogActions.service
 After=cutelogActions.service
 
 [Service]
-ExecStart={{ ssh_home }}/.local/pyComputeFarm/bin/taskManager {{ ssh_home }}/.local/pyComputeFarm/config/taskManager.yaml
+ExecStart=python -m {{ ssh_home }}/.local/pyComputeFarm/bin/taskManager {{ ssh_home }}/.local/pyComputeFarm/config/taskManager.yaml
 Restart=always
 
 [Install]

@@ -30,22 +30,333 @@ options:
   print(usage.__doc__)
   sys.exit(0)
 
-def runTaskManager() :
+
+cutelogActionsWriter = None
+
+async def openCutelog(cuteLogActionsHost, cutelogActionsPort) :
   """
-  Provide a centarl task manager for a compute farm by listening for JSON RPC
-  messages on a well known port.
+  Open the tcp connection to our cuteLogActions GUI.
 
-  There are three types of JSON RPC messages:
+  This GUI allows the user to locally monitor the progress of their computation
+  as various sub-tasks get computed by the computeFarm.
+  """
+  global cutelogActionsWriter
+  if cutelogActionsHost and cutelogActionsPort :
+    for attempt in range(60) :
+      try :
+        cutelogActionsReader, cutelogActionsWriter = await asyncio.open_connection(
+          cutelogActionsHost, int(cutelogActionsPort)
+        )
+        print(f"Connected to the cutelogActions on the {attempt} attempt")
+        sys.stdout.flush()
+        break
+      except :
+        cutelogActionsWriter = None
+        print(f"Could not connect to cutelogActions on the {attempt} attempt")
+        sys.stdout.flush()
+      await asyncio.sleep(1)
 
-  - newTask
+async def cutelog(jsonLog) :
+  """
+  Send a log message to the open cuteLogActions GUI.
+  """
+  if not cutelogActionsWriter :
+    if isinstance(jsonLog, str) :
+      print("+++++++++++++++++++++++")
+      print(jsonLog)
+      print("-----------------------")
+    else :
+      print(">>>>>>>>>>>>>>>>>>>>>>>")
+      print(yaml.dump(jsonLog))
+      print("<<<<<<<<<<<<<<<<<<<<<<<")
+    print("NO cutelogActionsWriter!")
+    sys.stdout.flush()
+    return
+
+  if isinstance(jsonLog, dict) :
+    jsonLog = json.dumps(jsonLog)
+
+  if isinstance(jsonLog, str) :
+    jsonLog = jsonLog.encode()
+
+  cutelogActionsWriter.write(len(jsonLog).to_bytes(4,'big'))
+  cutelogActionsWriter.write(jsonLog)
+  await cutelogActionsWriter.drain()
+
+async def cutelogLog(level, msg) :
+  """
+  Add the time, name and level to the base cuteLog message provided, and then
+  send the message (using `cuteLog`) to the cuteLogActions GUI.
+  """
+  logBody = msg
+  if isinstance(msg, str) : logBody = { 'msg' : msg }
+  logBody['time'] = time.time()
+  logBody['name'] = 'taskManager'
+  logBody['level'] = level
+  await cutelog(logBody)
+
+async def cutelogInfo(msg) :
+  """
+  Send a cuteLog message at the `Info` level.
+  """
+  await cutelogLog('info', msg)
+
+async def cutelogDebug(msg) :
+  """
+  Send a cuteLog message at the `Debug` level.
+  """
+  await cutelogLog('debug', msg)
+
+workerQueues = {}
+hostLoads    = {}
+
+async def handleConnection(reader, writer) :
+  """
+  Handle one connection ...
+
+  There are three types of JSON task messages:
+
+  - new task request
 
   - monitor load information
 
   - worker registration
 
-  
-  """
+  A JSON task message consists of:
 
+  - taskType  (used by both worker registration and new task requests to choose
+               the correct worker sub-queue)
+
+  - type      (one of `monitor`, `worker`, `taskRequest`)
+  
+  - host      (monifor messages, the name of the monitored machine)
+  
+  - wlOne     (monitor messages, work load average over last minute)
+  - wlFive    (monitor messages, work load average over last five minutes)
+  - wlFifteen (monitor messages, work load average over last fifteen minutes)
+  
+  - numCpus   (monitor messages, number of cpu/cores)
+  
+  - scale     (monitor messages, a scale factor configured for this machine)
+
+  - taskName  (taskRequest messages, the name of the requested task for use by
+               the cuteLogActions GUI)
+
+  - cmd       (taskRequest messages, a list of strings which when joined
+               provides the full command)
+  
+  - env       (taskRequest messages, a dict of key-value pairs which provides
+               the command's environment)
+
+  - dir       (taskRequest messages, the directory in which to run the requested
+               command)
+
+  For each JSON task message, both the `taskType` and `type` keys MUST exist.
+
+  For each JSON task message recieved, we deal with the simpler (short lived)
+  task messages in the following order:
+
+  1. Monitor messages (we simply record the load average information provided
+     for that machine and then close this connection).
+  
+  2. Worker registration (we simply add this this worker/connection to the queue
+     of existing workers for later use).
+
+  3. New task request (we find an existing worker/connection which matches the
+     requested task, forward the task request onto the worker, and then echo the
+     resulting "stream" of "log" messages back to both the task originator as
+     well as the cuteLogActions GUI. When the worker finishes, we close this
+     connection)
+  """
+  addr = writer.get_extra_info('peername')
+  await cutelogDebug(f"Handling new connection from {addr!r}")
+
+  # read task type
+  taskJson = await reader.readuntil()
+  task = {}
+  if taskJson :
+    task = json.loads(taskJson.decode())
+
+  taskType = None
+  if 'taskType' in task :
+    taskType = task['taskType']
+
+  # ensure we have a usable taskType
+  if not taskType :
+    cutelogDebug("Incorrect task request: missing taskType")
+    writer.write("Incorrect task request: missing taskType".encode())
+    await writer.drain()
+    writer.close()
+    await writer.wait_closed()
+    return
+
+  # IF task is a monitor... start recording workloads for this host
+  if 'type' in task and task['type'] == 'monitor' :
+    if 'host' in task :
+      monitoredHost = task['host']
+      await cutelogDebug(f"Got a new monitor connection from {monitoredHost}...")
+      while not reader.at_eof() :
+        try :
+          data = await reader.readline()
+        except :
+          await cutelogDebug(f"{task['host']} monitor close connection...")
+          break
+        message = data.decode()
+        jsonData = json.loads(message)
+        scaled   = jsonData['wlOne']/(jsonData['numCpus']*jsonData['scale'])
+        jsonData['name']   = 'monitor'
+        jsonData['level']  = 'debug'
+        jsonData['scaled'] = scaled
+        await cutelog(jsonData)
+        hostLoads[monitoredHost] = scaled
+
+    cutelogDebug(f"Closing monitor connection ...")
+    writer.close()
+    await writer.wait_closed()
+    return
+
+  # ELSE IF task is a worker... place the reader/writer in a worker queue
+  if 'type' in task and task['type'] == 'worker' :
+    if 'host' not in task :
+      await cutelogDebug(f"new worker without a host... dropping the connection...")
+      await cutelogDebug(task)
+      writer.close()
+      await writer.wait_close()
+      return
+    workerHost = task['host']
+
+    await cutelogDebug(f"Got a new worker connection...")
+    if taskType not in workerQueues :
+      workerQueues[taskType] = {}
+    if workerHost not in workerQueues[taskType] :
+      if workerHost not in hostLoads : hostLoads[workerHost] = 1000
+      workerQueues[taskType][workerHost] = asyncio.Queue()
+    await cutelogDebug(f"Queing {taskType!r} worker on {workerHost}")
+    await workerQueues[taskType][workerHost].put({
+      'taskType' : taskType,
+      'addr'     : addr,
+      'reader'   : reader,
+      'writer'   : writer
+    })
+    await cutelogDebug("Waiting for a new connection...")
+    return
+
+  # ELSE task is a request... get a worker and echo the results
+  if taskType not in workerQueues or len(workerQueues[taskType]) < 1 :
+    await cutelogDebug(f"No specialist worker found for the task type: [{taskType}]")
+    writer.write(
+      f"No specialist worker found for the task type: [{taskType}]".encode()
+    )
+    await writer.drain()
+    writer.close()
+    await writer.wait_closed()
+    return
+
+  while True :
+    workerHosts = list(workerQueues[taskType].keys())
+    leastLoadedHost = workerHosts.pop(0)
+    for aHost in workerHosts :
+      if hostLoads[aHost] < hostLoads[leastLoadedHost] :
+        leastLoadedHost = aHost
+    taskWorker = await workerQueues[taskType][leastLoadedHost].get()
+    workerQueues[taskType][leastLoadedHost].task_done()
+
+    try :
+      workerAddr   = taskWorker['addr']
+      workerReader = taskWorker['reader']
+      workerWriter = taskWorker['writer']
+
+      # Send this worker our task request
+      workerWriter.write(taskJson)
+      await workerWriter.drain()
+      workerWriter.write(b"\n")
+      await workerWriter.drain()
+    except ConnectionResetError :
+      await cutelogDebug("The assigned worker has died.... so we are trying the next")
+      continue
+    # We have found a live worker...
+    break
+
+  # add a small fudge factor to the leastLoadedHost's current load to
+  # ensure we don't keep choosing and hence over load it
+  #
+  hostLoads[leastLoadedHost] += 0.1
+
+  while not workerReader.at_eof() :
+    try :
+      data = await workerReader.readuntil()
+    except :
+      await cutelogDebug(f"Worker {workerAddr!r} closed connection")
+      break
+
+    message = data.decode()
+    await cutelogDebug(f"Received [{message!r}] from {workerAddr!r}")
+    await cutelogDebug(f"Echoing: [{message!r}] to {addr!r}")
+    await cutelog(message)
+    if 'returncode' in message :
+      writer.write(data)
+      #writer.write(b"\n")
+      await writer.drain()
+
+  await cutelogDebug(f"Closing the connection to {addr!r}")
+  writer.close()
+  await writer.wait_closed()
+
+async def tcpTaskServer() :
+  """
+  Run the tcpTaskServer by listening for new connections on the (configured)
+  "well known" port.
+
+  To do this we:
+  
+  - Open the connection to the cuteLogActions GUI.
+
+  - Set up signal handling (to gracefully deal with the SIGHUP, SIGTERM, and
+    SIGINT signals) 
+
+  - Start the asynchronous tcp server using the `handleConnection` method to
+    handle new connections.
+
+  We then serve forever (or until a singal is caught).
+  """
+  await openCutelog(cutelogActionsHost, cutelogActionsPort)
+
+  if not cutelogActionsWriter :
+    print(f"Could not open connection to cutelogActions at ({cutelogActionsHost}, {cutelogActionsPort}) ")
+
+  loop = asyncio.get_event_loop()
+
+  def signalHandler(signame) :
+    print("")
+    print(f"SignalHandler: caught signal {signame}")
+    if cutelogActionsWriter :
+      print("Closing connection to cutelogActions")
+      cutelogActionsWriter.close()
+    print("Sutting down")
+    loop.stop()
+
+  signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
+  for s in signals:
+    loop.add_signal_handler(s, signalHandler, s.name)
+
+  server = await asyncio.start_server(
+    handleConnection, taskManager['interface'], taskManager['port']
+  )
+
+  addrs = ', '.join(str(sock.getsockname()) for sock in server.sockets)
+  print(f"TaskManager serving on {addrs}")
+  await cutelogInfo(f"TaskManager serving on {addrs}")
+
+  async with server :
+    await server.serve_forever()
+
+def runTaskManager() :
+  """
+  Provide a centarl task manager for a compute farm by listening for JSON RPC
+  messages on a well known port.
+
+ 
+  """
 
   for anArg in sys.argv :
     if anArg == '-h' or anArg == '--help' :
@@ -81,233 +392,6 @@ def runTaskManager() :
       cutelogActions['port'] = 19996
     cutelogActionsHost = cutelogActions['host']
     cutelogActionsPort = cutelogActions['port']
-
-  cutelogActionsWriter = None
-
-  async def openCutelog(cuteLogActionsHost, cutelogActionsPort) :
-    global cutelogActionsWriter
-    if cutelogActionsHost and cutelogActionsPort :
-      for attempt in range(60) :
-        try :
-          cutelogActionsReader, cutelogActionsWriter = await asyncio.open_connection(
-            cutelogActionsHost, int(cutelogActionsPort)
-          )
-          print(f"Connected to the cutelogActions on the {attempt} attempt")
-          sys.stdout.flush()
-          break
-        except :
-          cutelogActionsWriter = None
-          print(f"Could not connect to cutelogActions on the {attempt} attempt")
-          sys.stdout.flush()
-        await asyncio.sleep(1)
-
-  async def cutelog(jsonLog) :
-    if not cutelogActionsWriter :
-      if isinstance(jsonLog, str) :
-        print("+++++++++++++++++++++++")
-        print(jsonLog)
-        print("-----------------------")
-      else :
-        print(">>>>>>>>>>>>>>>>>>>>>>>")
-        print(yaml.dump(jsonLog))
-        print("<<<<<<<<<<<<<<<<<<<<<<<")
-      print("NO cutelogActionsWriter!")
-      sys.stdout.flush()
-      return
-
-    if isinstance(jsonLog, dict) :
-      jsonLog = json.dumps(jsonLog)
-
-    if isinstance(jsonLog, str) :
-      jsonLog = jsonLog.encode()
-
-    cutelogActionsWriter.write(len(jsonLog).to_bytes(4,'big'))
-    cutelogActionsWriter.write(jsonLog)
-    await cutelogActionsWriter.drain()
-
-  async def cutelogLog(level, msg) :
-    logBody = msg
-    if isinstance(msg, str) : logBody = { 'msg' : msg }
-    logBody['time'] = time.time()
-    logBody['name'] = 'taskManager'
-    logBody['level'] = level
-    await cutelog(logBody)
-
-  async def cutelogInfo(msg) :
-    await cutelogLog('info', msg)
-
-  async def cutelogDebug(msg) :
-    await cutelogLog('debug', msg)
-
-  workerQueues = {}
-  hostLoads    = {}
-
-  async def handleConnection(reader, writer) :
-    addr = writer.get_extra_info('peername')
-    await cutelogDebug(f"Handling new connection from {addr!r}")
-
-    # read task type
-    taskJson = await reader.readuntil()
-    task = {}
-    if taskJson :
-      task = json.loads(taskJson.decode())
-
-    taskType = None
-    if 'taskType' in task :
-      taskType = task['taskType']
-
-    # ensure we have a usable taskType
-    if not taskType :
-      cutelogDebug("Incorrect task request: missing taskType")
-      writer.write("Incorrect task request: missing taskType".encode())
-      await writer.drain()
-      writer.close()
-      await writer.wait_closed()
-      return
-
-    # IF task is a monitor... start recording workloads for this host
-    if 'type' in task and task['type'] == 'monitor' :
-      if 'host' in task :
-        monitoredHost = task['host']
-        await cutelogDebug(f"Got a new monitor connection from {monitoredHost}...")
-        while not reader.at_eof() :
-          try :
-            data = await reader.readline()
-          except :
-            await cutelogDebug(f"{task['host']} monitor close connection...")
-            break
-          message = data.decode()
-          jsonData = json.loads(message)
-          scaled   = jsonData['wlOne']/(jsonData['numCpus']*jsonData['scale'])
-          jsonData['name']   = 'monitor'
-          jsonData['level']  = 'debug'
-          jsonData['scaled'] = scaled
-          await cutelog(jsonData)
-          hostLoads[monitoredHost] = scaled
-
-      cutelogDebug(f"Closing monitor connection ...")
-      writer.close()
-      await writer.wait_closed()
-      return
-
-    # ELSE IF task is a worker... place the reader/writer in a worker queue
-    if 'type' in task and task['type'] == 'worker' :
-      if 'host' not in task :
-        await cutelogDebug(f"new worker without a host... dropping the connection...")
-        await cutelogDebug(task)
-        writer.close()
-        await writer.wait_close()
-        return
-      workerHost = task['host']
-
-      await cutelogDebug(f"Got a new worker connection...")
-      if taskType not in workerQueues :
-        workerQueues[taskType] = {}
-      if workerHost not in workerQueues[taskType] :
-        if workerHost not in hostLoads : hostLoads[workerHost] = 1000
-        workerQueues[taskType][workerHost] = asyncio.Queue()
-      await cutelogDebug(f"Queing {taskType!r} worker on {workerHost}")
-      await workerQueues[taskType][workerHost].put({
-        'taskType' : taskType,
-        'addr'     : addr,
-        'reader'   : reader,
-        'writer'   : writer
-      })
-      await cutelogDebug("Waiting for a new connection...")
-      return
-
-    # ELSE task is a request... get a worker and echo the results
-    if taskType not in workerQueues or len(workerQueues[taskType]) < 1 :
-      await cutelogDebug(f"No specialist worker found for the task type: [{taskType}]")
-      writer.write(
-        f"No specialist worker found for the task type: [{taskType}]".encode()
-      )
-      await writer.drain()
-      writer.close()
-      await writer.wait_closed()
-      return
-
-    while True :
-      workerHosts = list(workerQueues[taskType].keys())
-      leastLoadedHost = workerHosts.pop(0)
-      for aHost in workerHosts :
-        if hostLoads[aHost] < hostLoads[leastLoadedHost] :
-          leastLoadedHost = aHost
-      taskWorker = await workerQueues[taskType][leastLoadedHost].get()
-      workerQueues[taskType][leastLoadedHost].task_done()
-
-      try :
-        workerAddr   = taskWorker['addr']
-        workerReader = taskWorker['reader']
-        workerWriter = taskWorker['writer']
-
-        # Send this worker our task request
-        workerWriter.write(taskJson)
-        await workerWriter.drain()
-        workerWriter.write(b"\n")
-        await workerWriter.drain()
-      except ConnectionResetError :
-        await cutelogDebug("The assigned worker has died.... so we are trying the next")
-        continue
-      # We have found a live worker...
-      break
-
-    # add a small fudge factor to the leastLoadedHost's current load to
-    # ensure we don't keep choosing and hence over load it
-    #
-    hostLoads[leastLoadedHost] += 0.1
-
-    while not workerReader.at_eof() :
-      try :
-        data = await workerReader.readuntil()
-      except :
-        await cutelogDebug(f"Worker {workerAddr!r} closed connection")
-        break
-
-      message = data.decode()
-      await cutelogDebug(f"Received [{message!r}] from {workerAddr!r}")
-      await cutelogDebug(f"Echoing: [{message!r}] to {addr!r}")
-      await cutelog(message)
-      if 'returncode' in message :
-        writer.write(data)
-        #writer.write(b"\n")
-        await writer.drain()
-
-    await cutelogDebug(f"Closing the connection to {addr!r}")
-    writer.close()
-    await writer.wait_closed()
-
-  async def tcpTaskServer() :
-    await openCutelog(cutelogActionsHost, cutelogActionsPort)
-
-    if not cutelogActionsWriter :
-      print(f"Could not open connection to cutelogActions at ({cutelogActionsHost}, {cutelogActionsPort}) ")
-
-    loop = asyncio.get_event_loop()
-
-    def signalHandler(signame) :
-      print("")
-      print(f"SignalHandler: caught signal {signame}")
-      if cutelogActionsWriter :
-        print("Closing connection to cutelogActions")
-        cutelogActionsWriter.close()
-      print("Sutting down")
-      loop.stop()
-
-    signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
-    for s in signals:
-      loop.add_signal_handler(s, signalHandler, s.name)
-
-    server = await asyncio.start_server(
-      handleConnection, taskManager['interface'], taskManager['port']
-    )
-
-    addrs = ', '.join(str(sock.getsockname()) for sock in server.sockets)
-    print(f"TaskManager serving on {addrs}")
-    await cutelogInfo(f"TaskManager serving on {addrs}")
-
-    async with server :
-      await server.serve_forever()
 
   try :
     asyncio.run(tcpTaskServer())
