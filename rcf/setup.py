@@ -216,6 +216,13 @@ def createLocalResourcesFor(aRole, gVars, aHost, aDir, config, secrets, logFile)
       aHost, aDir, config, secrets, logFile
     )
 
+  # platformCpus is used by workers whose commands produce outputs which are
+  # specific to a particular platform (linux) and cpu (aarch64 or x86_64)
+  #
+  # typically this allows multiple configuration (src) files targeted at
+  # specific platformCpus to be used by one (combined) more generic worker
+  # (see gccWorker).
+  #
   if 'platformCpus' in config :
     if 'platformCpus' in rTasks :
       for aPlatformCpu in config['platformCpus'] :
@@ -236,6 +243,7 @@ def createLocalResourcesFor(aRole, gVars, aHost, aDir, config, secrets, logFile)
             aRole, rTasks['workers'], rVars,
             aHost, aDir, config, secrets, logFile
           )
+          # TODO: un-tested because un-used/un-needed
           if 'platformCpus' in config :
             if 'platformCpuWorkers' in rTasks :
               for aPlatformCpu in config['platformCpus'] :
@@ -263,8 +271,8 @@ def createStartStopRunCommandsForHost(cmdTypes, aHost, hDir, gVars, logFile) :
 '''
   defaultTargetFiles = {
     'commands' : str(hDir / "{pcfHome}".format_map(gVars) / 'tmp' / 'run_commands'),
-    'start'    : str(hDir / "{pcfHome}".format_map(gVars) / 'bin' / 'startComputeFarm'),
-    'stop'     : str(hDir / "{pcfHome}".format_map(gVars) / 'bin' / 'stopComputeFarm')
+    'start'    : str(hDir / "{pcfHome}".format_map(gVars) / 'bin' / 'start_computeFarm'),
+    'stop'     : str(hDir / "{pcfHome}".format_map(gVars) / 'bin' / 'stop_computeFarm')
   }
   targetFiles = {
     'hDir'     : str(hDir),

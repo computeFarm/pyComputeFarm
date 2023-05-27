@@ -17,7 +17,7 @@ taskRequest = {
   'type'     : "taskRequest",
   'taskName' : "unknown",
   'taskType' : "unknown",
-  'cmd'      : [],
+  'actions'  : [],
   'env'      : {},
   'dir'      : '',
   'timeOut'  : 100,
@@ -187,7 +187,7 @@ def runNewTask() :
   taskRequest['taskType'] = sys.argv.pop(0)
   while 0 < len(sys.argv) :
     anArg = sys.argv.pop(0)
-    taskRequest['cmd'].append(anArg)
+    taskRequest['actions'].append(anArg)
 
   print(f"Task name: {taskRequest['taskName']}")
   print(f"Task type: {taskRequest['taskType']}")

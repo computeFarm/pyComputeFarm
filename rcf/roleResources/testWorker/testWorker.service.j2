@@ -7,7 +7,7 @@ PartOf=testWorker.target
 
 [Service]
 WorkingDirectory={{ ssh_home }}/.local/pyComputeFarm/tmp
-ExecStart=python -m {{ ssh_home }}/.local/pyComputeFarm/bin/worker {{aWorker}} {{ ssh_home }}/.local/pyComputeFarm/config/runnerConfig-{{aWorker}}.yaml
+ExecStart=python {{ ssh_home }}/.local/pyComputeFarm/bin/worker.py {{aWorker}} {{ ssh_home }}/.local/pyComputeFarm/config/runnerConfig-{{aWorker}}.yaml
 Restart=always
 
 [Install]

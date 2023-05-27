@@ -125,7 +125,7 @@ def startAHost(aHost, gVars, config, secrets, logFileBase) :
   print(f"Starting host {aHost}")
   runCmdPath = os.path.join(
     "{pcfHome}".format_map(gVars),
-    'bin', 'startComputeFarm'
+    'bin', 'start_computeFarm'
   )
   exitStatus = 0
   with open(str(logFileBase)+'-start', "w") as logFile :
@@ -136,7 +136,7 @@ def stopAHost(aHost, gVars, config, secrets, logFileBase) :
   print(f"Stopping host {aHost}")
   runCmdPath = os.path.join(
     "{pcfHome}".format_map(gVars),
-    'bin', 'stopComputeFarm'
+    'bin', 'stop_computeFarm'
   )
   exitStatus = 0
   with open(str(logFileBase)+'-stop', "w") as logFile :

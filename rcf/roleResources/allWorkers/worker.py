@@ -45,10 +45,12 @@ def compileActionScript(someAliases, someEnvs, someActions) :
   well as the aliases specified in the `someAliases` (dict) parameter.
   """
 
+  # consider using os.path.expanduser and our own normalizePath
+
   actionScript = []
   actionScript.append("#!/bin/sh")
 
-  actionsScript.append("# export the aliases...")
+  actionScript.append("# export the aliases...")
   if isinstance(someAliases, dict) :
     for aKey, aValue in someAliases.items() :
       actionScript.append(f"alias {aKey}=\"{aValue}\"")
@@ -258,19 +260,26 @@ def runWorker() :
           localEnv[aKey] = aValue
         taskEnv = localEnv
 
+      #TODO: need to rework this to use compileActionScript
+      #TODO: need to combine worker and task environment
+      
+      taskAliases = {}
+      if 'aliases' in taskRequest and isinstance(taskRequest['aliases'], dict) :
+        taskAliases = taskRequest['aliases']
 
-      TODO: need to rework this to use compileActionScript
-      TODO: need to combine worker and task environment
-      taskCmd = []
-      cCmd = config['cmd']
-      for anArg in cCmd['prefix'] :
-        taskCmd.append(os.path.expanduser(anArg))
-      if 'cmd' in taskRequest and type(taskRequest['cmd']) == list :
-        tCmd = taskRequest['cmd']
-        for anArg in tCmd :
-          taskCmd.append(os.path.expanduser(anArg))
-      for anArg in cCmd['suffix'] :
-        taskCmd.append(os.path.expanduser(anArg))
+      taskActions = []
+      if 'actions' in taskRequest and type(taskRequest['actions']) == list :
+        taskActions = taskRequest['actions']
+
+      actionScript = compileActionScript(taskAliases, taskEnv, taskActions)
+      print("---------------------------------------")
+      print(actionScript)
+      print("---------------------------------------")
+      tmpFile = tempfile.NamedTemporaryFile(prefix='cfdoit-LocalWorkerTask-', delete=False)
+      tmpFile.write(actionScript.encode("utf8"))
+      tmpFile.close()
+      os.chmod(tmpFile.name, 0o755)
+      taskCmd = tmpFile.name
 
       if 'verbose' in config :
         print("subprocess cmd: ")

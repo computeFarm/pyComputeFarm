@@ -8,11 +8,11 @@ files:
   - src: hashCheck.c
     dest: "{pcfHome}/tmp/hashCheck.c"
     mode: 0644
-  - src: taskManager
-    dest: "{pcfHome}/bin/taskManager"
+  - src: taskManager.py
+    dest: "{pcfHome}/bin/taskManager.py"
     mode: 0755
-  - src: newTask
-    dest: "{pcfHome}/bin/newTask"
+  - src: newTask.py
+    dest: "{pcfHome}/bin/newTask.py"
     mode: 0755
   - src: taskManager.yaml.j2
     dest: "{pcfHome}/config/taskManager.yaml"

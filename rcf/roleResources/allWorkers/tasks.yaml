@@ -7,14 +7,14 @@ targetDirs:
   - "{pcfHome}/config"
 
 files:
-  - src: worker
-    dest: "{pcfHome}/bin/worker"
+  - src: worker.py
+    dest: "{pcfHome}/bin/worker.py"
     mode: 0755
   - src: monitor.service.j2
     dest: "{sysHome}/monitor.service"
     mode: 0644
-  - src: monitor
-    dest: "{pcfHome}/bin/monitor"
+  - src: monitor.py
+    dest: "{pcfHome}/bin/monitor.py"
     mode: 0755
 
 start :

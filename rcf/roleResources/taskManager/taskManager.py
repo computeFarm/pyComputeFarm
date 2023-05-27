@@ -33,7 +33,7 @@ options:
 
 cutelogActionsWriter = None
 
-async def openCutelog(cuteLogActionsHost, cutelogActionsPort) :
+async def openCutelog(cutelogActionsHost, cutelogActionsPort) :
   """
   Open the tcp connection to our cuteLogActions GUI.
 
@@ -380,7 +380,7 @@ async def handleConnection(reader, writer) :
   writer.close()
   await writer.wait_closed()
 
-async def tcpTaskServer() :
+async def tcpTaskServer(config) :
   """
   Run the tcpTaskServer by listening for new connections on the (configured)
   "well known" port.
@@ -397,6 +397,9 @@ async def tcpTaskServer() :
 
   We then serve forever (or until a singal is caught).
   """
+  cutelogActionsHost = config['cutelogActions']['host']
+  cutelogActionsPort = config['cutelogActions']['port']
+
   await openCutelog(cutelogActionsHost, cutelogActionsPort)
 
   if not cutelogActionsWriter :
@@ -417,6 +420,7 @@ async def tcpTaskServer() :
   for s in signals:
     loop.add_signal_handler(s, signalHandler, s.name)
 
+  taskManager = config['taskManager']
   server = await asyncio.start_server(
     handleConnection, taskManager['interface'], taskManager['port']
   )
@@ -460,23 +464,19 @@ def runTaskManager() :
   if 'port' not in taskManager :
     taskManager['port'] = 8888
 
-  cutelogActionsHost = None
-  cutelogActionsPort = None
   if 'cutelogActions' in config :
     cutelogActions = config['cutelogActions']
     if 'host' not in cutelogActions :
       cutelogActions['host'] = "localhost"
     if 'port' not in cutelogActions :
       cutelogActions['port'] = 19996
-    cutelogActionsHost = cutelogActions['host']
-    cutelogActionsPort = cutelogActions['port']
 
   try :
-    asyncio.run(tcpTaskServer())
+    asyncio.run(tcpTaskServer(config))
   except :
-    pass
-    #print("Caught and ignored exception")
-    #print(traceback.format_exc())
+    #pass
+    print("Caught and ignored exception")
+    print(traceback.format_exc())
 
 if __name__ == "__main__" :
   sys.exit(runTaskManager())
