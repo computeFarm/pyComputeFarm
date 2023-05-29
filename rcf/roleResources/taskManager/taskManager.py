@@ -308,14 +308,41 @@ async def handleConnection(reader, writer) :
   # ELSE IF task is a query about types of workers... check the worker queue
   if 'type' in task and task['type'] == 'workerQuery' :
     await cuteLogDebug(f"Got a worker query connection...")
+
     # collect the host type information (platform, cpuType)
     lHostTypes = {}
-    for pKey, pValue in hostTypes.items() :
-      for cKey, cValue in pValue.items() :
-        if cValue :
-          if pKey not in lHostTypes : lHostTypes[pKey] = {}
-          if cKey not in lHostTypes[pKey] :lHostTypes[pKey][cKey] = True
-    # ....
+    for platformKey, platformValue in hostTypes.items() :
+      for cpuKey, cpuValue in platformValue.items() :
+        if cpuValue :
+          if platformKey not in lHostTypes :
+            lHostTypes[platformKey]         = {}
+          if cpuKey      not in lHostTypes[platformKey] : 
+            lHostTypes[platformKey][cpuKey] = True
+
+    # collect information about the current available workers and tools
+    lWorkers = {}
+    lTools   = {}
+    for workerType in workerQueues :
+      if workerType not in lWorkers : lWorkers[workerType] = True
+      if workerType in workerTypes :
+        for aTool in workerTypes[workerType] :
+          if aTool not in lTools : lTools[aTool] = {}
+          if workerType not in lTools[aTool] :
+            lTools[aTool][workerType] = True
+      
+    # send worker information 
+    print("Sending worker information to queryWorkers/cfdoit")
+    writer.write(json.dumps({
+      'type'      : 'workerQuery',
+      'taskType'  : 'workerQuery',
+      'hostTypes' : lHostTypes,
+      'workers'   : lWorkers,
+      'tools'     : lTools
+    }).encode())
+    await writer.drain()
+    writer.write(b"\n")
+    await writer.drain()
+
     await cutelogDebug("Waiting for a new connection...")
     return
 

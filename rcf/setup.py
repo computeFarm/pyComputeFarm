@@ -126,16 +126,25 @@ def createFilesFor(aRole, rFiles, rVars, aHost, aDir, config, secrets, logFile) 
   Resources that end in `.j2` are expanded using `jinjafile`.
 
   Resources that do not end in `.j2` are simply copied using `copyFile`.
+
+  If the 'src' key is a list, then each of the source files listed are
+  concatinated together with a newline.
   """
   logFile.write(f"creating files for {aRole} on {aHost}\n")
   for aFile in rFiles :
-    aSrcFile = aFile['src'].format_map(rVars)
-    contents = loadResourceFor(aRole, aSrcFile)
+    if isinstance(aFile['src'], str) : aFile['src'] = [ aFile['src'] ]
+    useJinja2 = False
+    contents = []
+    for aSrcFile in aFile['src'] :
+      if aSrcFile.endswith('.j2') : useJinja2 = True
+      aSrcFile = aSrcFile.format_map(rVars)
+      contents.append(loadResourceFor(aRole, aSrcFile))
+    contents = "\n".join(contents)
     if 'files' in config :
       if 'dest' in config['files'] :
         config['files']['dest'] = config['files']['dest'].format_map(rVars)
     theTargetFile = aDir / aFile['dest'].format_map(rVars)
-    if aSrcFile.endswith('.j2') :
+    if useJinja2 :
       jinjaFile(contents, theTargetFile, config, secrets, logFile)
     else :
       copyFile(contents, theTargetFile)

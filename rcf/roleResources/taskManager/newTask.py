@@ -4,31 +4,11 @@ Request a new task and then echo the results as they come back...
 To keep this script as self contained as possible, we use a fairly simple
 command line argument parser (consisting of `checkNextArg`, `popArg`,
 `popIntArg`, `setArg`, and `setEnv`)
+
+This "module" MUST be concatinated to the END of the `taskManagerAccess` module.
 """
-import asyncio
-import json
-import sys
-import yaml
 
-taskRequest = {
-  'progName' : "",
-  'host'     : "127.0.0.1",
-  'port'     : 8888,
-  'type'     : "taskRequest",
-  'taskName' : "unknown",
-  'taskType' : "unknown",
-  'actions'  : [],
-  'env'      : {},
-  'dir'      : '',
-  'timeOut'  : 100,
-  'logPath'  : 'stdout',
-#  'mmh3'     : [],
-  'verbose'  : False
-}
-
-optArgsList = []
-
-def usage() :
+def usage(optArgsList) :
   '''
 usage: newTask [options] -- taskName workerType [cmdWord ...]
 
@@ -57,105 +37,90 @@ options:
     print(f"  {anOptKey.ljust(optKeyLen)} {optHelp[anOptKey]}")
   sys.exit(1)
 
-def setArg(aKey, aValue) :
-  """
-  Set the taskRequest's key `aKey` to the value `aValue.
-  """
-  taskRequest[aKey] = aValue
+taskRequest = {
+  'progName' : "",
+  'host'     : "127.0.0.1",
+  'port'     : 8888,
+  'type'     : "taskRequest",
+  'taskName' : "unknown",
+  'taskType' : "unknown",
+  'actions'  : [],
+  'env'      : {},
+  'dir'      : '',
+  'timeOut'  : 100,
+  'logPath'  : 'stdout',
+#  'mmh3'     : [],
+  'verbose'  : False
+}
 
-def checkNextArg(aKey) :
-  """
-  Check the next argument for an optional argument for the currently parsed key
-  `aKey`.
-  """
-  if len(sys.argv) < 1 or sys.argv[0].startswith('-') :
-    print(f"Missing optional argument for [{aKey}]")
-    usage()
-
-def popArg(aKey) :
-  """
-  Check the next argument for the value associated with the key `aKey`. If found
-  set the taskRequest key `aKey` with the value `aValue`.
-  """
-  checkNextArg(aKey)
-  setArg(aKey, sys.argv.pop(0))
-
-def popIntArg(aKey) :
-  """
-  Pop the next argument (using `popArg`) but ensure the taskRequest's value is a
-  integer.
-  """
-  popArg(aKey)
-  taskRequest[aKey] = int(taskRequest[aKey])
-
-#def addMmh3() :
-#  checkNextArg('mmh3')
-#  taskRequest['mmh3'].append(sys.argv.pop(0))
-
-def setEnv() :
-  """
-  Pop the next argument checking to see if it is a an environment setting
-  (contains an `=` with no spaces).
-
-  If it is an enironment setting, add it to the taskRequest's `env` key.
-  """
-  anEnvTuple = sys.argv.pop(0).split('=')
-  if len(anEnvTuple) != 2 :
-    print("Environment variable arguments MUST be of the form:")
-    print("  NAME=value")
-    usage()
-  taskRequest['env'][anEnvTuple[0]] = anEnvTuple[1]
+optArgsList = []
 
 optArgsList.append({
-    'key' : [ '--help' ],
-    'msg' : "Show this help message and exit",
-    'fnc' : usage
-  })
+  'key' : [ '--help' ],
+  'msg' : "Show this help message and exit",
+  'fnc' : lambda : usage(optArgsList)
+})
 optArgsList.append({
-    'key' : [ '-h', '--host' ],
-    'msg' : "TaskManager's host",
-    'fnc' : lambda : popArg('host')
-  })
+  'key' : [ '-h', '--host' ],
+  'msg' : "TaskManager's host",
+  'fnc' : lambda : popArg('host', taskRequest, optArgsList)
+})
 optArgsList.append({
-    'key' : [ '-p', '--port' ],
-    'msg' : "TaskManager's port",
-    'fnc' : lambda : popIntArg('port')
-  })
+  'key' : [ '-p', '--port' ],
+  'msg' : "TaskManager's port",
+  'fnc' : lambda : popIntArg('port', taskRequest, optArgsList)
+})
 optArgsList.append({
-    'key' : [ '-e', '--env' ],
-    'msg' : "Add a task environment variable",
-    'fnc' : setEnv
-  })
+  'key' : [ '-e', '--env' ],
+  'msg' : "Add a task environment variable",
+  'fnc' : lambda : setEnv(taskRequest, optArgsList)
+})
 optArgsList.append({
-    'key' : [ '-d', '--dir' ],
-    'msg' : "Task directory",
-    'fnc' : lambda : popArg('dir')
-  })
+  'key' : [ '-d', '--dir' ],
+  'msg' : "Task directory",
+  'fnc' : lambda : popArg('dir', taskRequest, optArgsList)
+})
 optArgsList.append({
-    'key' : [ '-t', '-timeout', '--timeOut' ],
-    'msg' : "Task time out in seconds",
-    'fnc' : lambda : popIntArg('timeOut')
-  })
+  'key' : [ '-t', '-timeout', '--timeOut' ],
+  'msg' : "Task time out in seconds",
+  'fnc' : lambda : popIntArg('timeOut', taskRequest, optArgsList)
+})
 optArgsList.append({
-    'key' : [ '-l', '--log' ],
-    'msg' : "Path to the log file",
-    'fnc' : lambda : popArg('logPath')
-  })
+  'key' : [ '-l', '--log' ],
+  'msg' : "Path to the log file",
+  'fnc' : lambda : popArg('logPath', taskRequest, optArgsList)
+})
 optArgsList.append({
-    'key' : [ '-v', '--verbose' ],
-    'msg' : "Echo the complete task request",
-    'fnc' : lambda : setArg('verbose', True)
-  })
+  'key' : [ '-v', '--verbose' ],
+  'msg' : "Echo the complete task request",
+  'fnc' : lambda : setArg('verbose', True, taskRequest, optArgsList)
+})
 #optArgsList.append({
-#    'key' : [ '-m', '--mmh'],
-#    'msg' : "Only run task if mmh3 changed",
-#    'fnc' : addMmh3
-#  })
+#  'key' : [ '-m', '--mmh'],
+#  'msg' : "Only run task if mmh3 changed",
+#  'fnc' : addMmh3
+#})
 #optArgsList.append({
-#    'key' : [ ],
-#    'msg' : "",
-#    'fnc' :
-#  })
+#  'key' : [ ],
+#  'msg' : "",
+#  'fnc' :
+#})
+
+def remainingArgs(requestDict, optArgsList) :
+  if len(sys.argv) < 2 :
+    print("Missing taskName and workerType")
+    usage(optArgsList)
+  requestDict['taskName'] = sys.argv.pop(0)
+  requestDict['taskType'] = sys.argv.pop(0)
+  while 0 < len(sys.argv) :
+    anArg = sys.argv.pop(0)
+    requestDict['actions'].append(anArg)
+
+async def runTask(taskRequest, setWorkerReturnCode) :
+  reader, writer = await tcpTMConnection(taskRequest)
+  if reader and writer :
+    await tcpTMSendRequest(queryRequest, reader, writer)
+    await tcpTMEchoResults(reader, writer, setWorkerReturnCode)
 
 def runNewTask() :
   """
@@ -164,30 +129,7 @@ def runNewTask() :
   in semi-real time.
   """
 
-  optArgs = {}
-  optArgsHelp = [ "options:" ]
-
-  for anOptArg in optArgsList :
-    for aKey in anOptArg['key'] :
-      optArgs[aKey] = anOptArg['fnc']
-
-  taskRequest['progName'] = sys.argv.pop(0)
-  while 0 < len(sys.argv) and sys.argv[0] != '--' :
-    anArg = sys.argv.pop(0)
-    if anArg in optArgs :
-      optArgs[anArg]()
-    else :
-      print(f"Not expecting: [{anArg}]")
-      usage()
-  if 0 < len(sys.argv) : sys.argv.pop(0)
-  if len(sys.argv) < 2 :
-    print("Missing taskName and workerType")
-    usage()
-  taskRequest['taskName'] = sys.argv.pop(0)
-  taskRequest['taskType'] = sys.argv.pop(0)
-  while 0 < len(sys.argv) :
-    anArg = sys.argv.pop(0)
-    taskRequest['actions'].append(anArg)
+  parseCli(taskRequest, optArgsList, remainingArgs)
 
   print(f"Task name: {taskRequest['taskName']}")
   print(f"Task type: {taskRequest['taskType']}")
@@ -202,52 +144,11 @@ def runNewTask() :
     workerReturnCode = int(aCode)
     print(workerReturnCode)
 
-  async def tcpTaskRequest(taskRequest) :
-    try :
-      reader, writer = await asyncio.open_connection(
-        taskRequest['host'],
-        taskRequest['port']
-      )
-    except ConnectionRefusedError :
-      print("Could not connect to the taskManager")
-      return
-    except Exception as err :
-      print(f"Exception({err.__class__.__name__}): {str(err)}")
-      return
-
-    # send task request
-
-    writer.write(json.dumps(taskRequest).encode())
-    await writer.drain()
-    writer.write(b"\n")
-    await writer.drain()
-
-    # echo any results
-
-    moreToRead = True
-    while moreToRead :
-      print("Reading...")
-      data = await reader.readuntil()
-      aLine = data.decode().strip()
-      # print(f'Received: [{aLine}]')
-      if 'returncode' in aLine :
-        workerJson = json.loads(aLine)
-        if 'returncode' in workerJson :
-          setWorkerReturnCode(workerJson['returncode'])
-        if 'msg' in workerJson :
-          print(workerJson['msg'])
-        moreToRead = False
-      if reader.at_eof()       : moreToRead = False
-
-    print("Closing the connection")
-    writer.close()
-    await writer.wait_closed()
-
-  asyncio.run(tcpTaskRequest(taskRequest))
+  asyncio.run(runTask(taskRequest, setWorkerReturnCode))
 
   if workerReturnCode is None : workerReturnCode = 1
   print(f"Return code: {workerReturnCode}")
-  sys.exit(workerReturnCode)
+  return workerReturnCode
 
 if __name__ == "__main__" :
   sys.exit(runNewTask())

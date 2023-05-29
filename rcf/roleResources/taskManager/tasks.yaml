@@ -11,8 +11,25 @@ files:
   - src: taskManager.py
     dest: "{pcfHome}/bin/taskManager.py"
     mode: 0755
-  - src: newTask.py
+  # the query workers tool is in two parts (the Python script and the Bash shell)
+  - src: 
+      - taskManagerAccess.py
+      - taskCli.py
+      - queryWorkers.py
+    dest: "{pcfHome}/bin/queryWorkers.py"
+    mode: 0644
+  - src: queryWorkers.sh.j2
+    dest: "{pcfHome}/bin/queryWorkers"
+    mode: 0755
+  # the new task tool is in two parts (the Python script and the Bash shell)
+  - src:
+      - taskManagerAccess.py
+      - taskCli.py
+      - newTask.py
     dest: "{pcfHome}/bin/newTask.py"
+    mode: 0644
+  - src: newTask.sh.j2
+    dest: "{pcfHome}/bin/newTask"
     mode: 0755
   - src: taskManager.yaml.j2
     dest: "{pcfHome}/config/taskManager.yaml"
