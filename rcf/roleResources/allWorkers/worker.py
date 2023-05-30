@@ -38,40 +38,6 @@ options:
   print(usage.__doc__)
   sys.exit(1)
 
-def compileActionScript(someAliases, someEnvs, someActions) :
-  """
-  Create a (unix) shell script which can run the actions specified by the
-  `someActions` (list of lists or strings) parameter using (unix shell)
-  environment variables specified in the `someEnvs` (list of dicts) parameter as
-  well as the aliases specified in the `someAliases` (dict) parameter.
-  """
-
-  # consider using os.path.expanduser and our own normalizePath
-
-  actionScript = []
-  actionScript.append("#!/bin/sh")
-
-  actionScript.append("# export the aliases...")
-  if isinstance(someAliases, dict) :
-    for aKey, aValue in someAliases.items() :
-      actionScript.append(f"alias {aKey}=\"{aValue}\"")
-
-  actionScript.append("# export the environment...")
-  if isinstance(someEnvs, list) :
-    for anEnv in someEnvs :
-      if isinstance(anEnv, dict) :
-        for aKey, aValue in anEnv.items() :
-          actionScript.append(f"export {aKey}=\"{aValue}\"")
-
-  actionScript.append("# now run the actions...")
-  for anAction in someActions :
-    if isinstance(anAction, str) :
-      actionScript.append(anAction)
-    elif isinstance(anAction, list) :
-      actionScript.append(" ".join(anAction))
-
-  return "\n\n".join(actionScript)
-
 def runWorker() :
   """
   Run a single worker by opening a tcp connection to the taskManager, register

@@ -13,7 +13,7 @@ files:
     mode: 0755
   # the query workers tool is in two parts (the Python script and the Bash shell)
   - src: 
-      - taskManagerAccess.py
+      - ../../computeFarmTools.py
       - taskCli.py
       - queryWorkers.py
     dest: "{pcfHome}/bin/queryWorkers.py"
@@ -23,7 +23,7 @@ files:
     mode: 0755
   # the new task tool is in two parts (the Python script and the Bash shell)
   - src:
-      - taskManagerAccess.py
+      - ../../computeFarmTools.py
       - taskCli.py
       - newTask.py
     dest: "{pcfHome}/bin/newTask.py"

@@ -6,6 +6,7 @@ from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from cryptography.exceptions import InvalidSignature
 import getpass
 import importlib.resources
+import os
 from pathlib import Path
 import secrets
 import sys
@@ -199,7 +200,9 @@ def decrypt(eContents, passPhrase) :
 #
 def loadResourceFor(aRole, aResource) :
   try :
-    if aRole :
+    if aResource.startswith('..') :
+      contents = importlib.resources.read_text('rcf', os.path.basename(aResource))
+    elif aRole :
       contents = importlib.resources.read_text('rcf.roleResources.'+aRole, aResource)
     else :
       contents = importlib.resources.read_text('rcf.roleResources', aResource)
