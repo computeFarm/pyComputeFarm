@@ -3,11 +3,11 @@
 
 import time
 
-def logParser(logName, logMsg) :
+def logParser(taskRequest, logMsg) :
   return {
     'time'  : time.time(),
-  	'name'  : logName,
-  	'level' : 'info',
-  	'msg'   : logMsg
+    'name'  : taskRequest['taskName'],
+    'level' : 'info',
+    'msg'   : logMsg
 
   }

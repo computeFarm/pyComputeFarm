@@ -112,15 +112,11 @@ def remainingArgs(requestDict, optArgsList) :
     usage(optArgsList)
   requestDict['taskName'] = sys.argv.pop(0)
   requestDict['taskType'] = sys.argv.pop(0)
+  cmdLine = []
   while 0 < len(sys.argv) :
     anArg = sys.argv.pop(0)
-    requestDict['actions'].append(anArg)
-
-async def runTask(taskRequest, setWorkerReturnCode) :
-  reader, writer = await tcpTMConnection(taskRequest)
-  if reader and writer :
-    await tcpTMSendRequest(queryRequest, reader, writer)
-    await tcpTMEchoResults(reader, writer, setWorkerReturnCode)
+    cmdLine.append(anArg)
+  requestDict['actions'].append(cmdLine)
 
 def runNewTask() :
   """
@@ -138,17 +134,19 @@ def runNewTask() :
     print(yaml.dump(taskRequest))
     print("---")
 
-  workerReturnCode = None
+  workerReturnCode = []
   def setWorkerReturnCode(aCode) :
-    global workerReturnCode
-    workerReturnCode = int(aCode)
-    print(workerReturnCode)
+    workerReturnCode.append(int(aCode))
+    print(yaml.dump(workerReturnCode))
 
-  asyncio.run(runTask(taskRequest, setWorkerReturnCode))
+  tmSocket = tcpTMConnection(taskRequest)
+  if tmSocket :
+    if tcpTMSentRequest(taskRequest, tmSocket) :
+      tcpTMEchoResults(tmSocket, setWorkerReturnCode)  
 
-  if workerReturnCode is None : workerReturnCode = 1
-  print(f"Return code: {workerReturnCode}")
-  return workerReturnCode
+  if not workerReturnCode : workerReturnCode.append(1)
+  print(f"Return code: {workerReturnCode[0]}")
+  return workerReturnCode[0]
 
 if __name__ == "__main__" :
   sys.exit(runNewTask())

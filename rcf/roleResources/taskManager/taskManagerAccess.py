@@ -1,66 +1,79 @@
 """
-This "module" provides the async methods required to access the TaskManager
+This "module" provides the (socket) methods required to access the TaskManager
 using the ComputeFarm JSON RPC protocol.
 
 This "module" is used by both the newTask and queryWorkers tools.
 """
 
-import asyncio
 import json
+import socket
 import sys
 import yaml
 
-async def tcpTMConnection(tmRequest) :
+def tcpTMConnection(tmRequest) :
   try :
-    reader, writer = await asyncio.open_connection(
+    tmSocket = socket.create_connection((
       tmRequest['host'],
       tmRequest['port']
-    )
-  except ConnectionRefusedError :
-    print("Could not connect to the taskManager")
-    return (None, None)
+    ))
   except Exception as err :
+    print("Could not connect to the taskManager")
     print(f"Exception({err.__class__.__name__}): {str(err)}")
-    return (None, None)
-  return (reader, writer)
+    return None
+  return tmSocket
 
-async def tcpTMSendRequest(tmRequest, reader, writer) :
+def tcpTMSentRequest(tmRequest, tmSocket) :
   # send task request
+  try :
+    tmSocket.sendall(json.dumps(tmRequest).encode() + b"\n")
+  except Exception as err :
+    print("Lost connection to the taskManager while sending a request")
+    print(f"Exception({err.__class__.__name__}): {str(err)}")
+    return False
+  return True
 
-  writer.write(json.dumps(tmRequest).encode())
-  await writer.drain()
-  writer.write(b"\n")
-  await writer.drain()
-
-async def tcpTMGetResult(reader, writer) :
+def tcpTMGetResult(tmSocket) :
   # read result
-  resultJson = await reader.readuntil()
-  retsult = {}
+  result = {}
+  resultJson = None
+  try : 
+    resultJson = tmSocket.recv(4096)
+  except Exception as err :
+    print("Lost connection to the taskManager while getting a result")
+    print(f"Exception({err.__class__.__name__}): {str(err)}")
   if resultJson :
     result = json.loads(resultJson.decode())
   return result
 
-async def tcpTMCloseConnection(reader, writer) :
+def tcpTMCloseConnection(tmSocket) :
   print("Closing the connection")
-  writer.close()
-  await writer.wait_closed()
+  tmSocket.shutdown(socket.SHUT_RDWR)
+  tmSocket.close()
 
-async def tcpTMEchoResults(reader, writer, setWorkerReturnCode) :
+def tcpTMEchoResults(tmSocket, setWorkerReturnCode) :
   # echo any results
 
   moreToRead = True
   while moreToRead :
     print("Reading...")
-    data = await reader.readuntil()
-    aLine = data.decode().strip()
-    # print(f'Received: [{aLine}]')
-    if 'returncode' in aLine :
-      workerJson = json.loads(aLine)
-      if 'returncode' in workerJson :
-        setWorkerReturnCode(workerJson['returncode'])
-      if 'msg' in workerJson :
-        print(workerJson['msg'])
+    data = None
+    try : 
+      data = tmSocket.recv(4096)
+    except Exception as err :
+      print("Lost connection to the taskManager")
+      print(f"Exception({err.__class__.__name__}): {str(err)}")
+    if data :
+     aLine = data.decode().strip()
+     #print(f'Received: [{aLine}]')
+     if 'returncode' in aLine :
+       workerJson = json.loads(aLine)
+       if 'returncode' in workerJson :
+         setWorkerReturnCode(workerJson['returncode'])
+       if 'msg' in workerJson :
+         print(workerJson['msg'])
+       moreToRead = False
+    else : 
+      print("Data is empty!")
       moreToRead = False
-    if reader.at_eof()       : moreToRead = False
 
-  await tcpTMCloseConnection(reader, writer)
+  tcpTMCloseConnection(tmSocket)

@@ -63,14 +63,6 @@ optArgsList.append({
 def remainingArgs(queryRequest, optArgsList) :
   pass
 
-async def runQuery(queryRequest) :
-  reader, writer = await tcpTMConnection(queryRequest)
-  if reader and writer :
-    await tcpTMSendRequest(queryRequest, reader, writer)
-    result = await tcpTMGetResult(reader, writer)
-    await tcpTMCloseConnection(reader, writer)
-    print(yaml.dump(result))
-
 def runQueryWorkers() :
   """
   Compile a JSON queryRequest structure from the command line arguments and then
@@ -85,7 +77,12 @@ def runQueryWorkers() :
     print(yaml.dump(queryRequest))
     print("---")
 
-  asyncio.run(runQuery(queryRequest))
+  tmSocket = tcpTMConnection(queryRequest)
+  if tmSocket :
+    if tcpTMSentRequest(queryRequest, tmSocket) :
+      result = tcpTMGetResult(tmSocket)
+      tcpTMCloseConnection(tmSocket)
+      print(yaml.dump(result))
 
 if __name__ == "__main__" :
   sys.exit(runQueryWorkers())

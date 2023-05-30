@@ -14,6 +14,7 @@ import json
 import os
 import platform
 import sys
+import tempfile
 import time
 import traceback
 import yaml
@@ -223,6 +224,7 @@ def runWorker() :
       'type'           : 'worker',
       'taskType'       : workerType,
       'host'           : hostName,
+      'workerName'     : workerName,
       'availableTools' : config['availableTools']
     }).encode())
     await writer.drain()
@@ -293,7 +295,7 @@ def runWorker() :
 
       try :
         proc = await asyncio.create_subprocess_exec(
-          *taskCmd,
+          taskCmd,
           stdout=asyncio.subprocess.PIPE,
           stderr=asyncio.subprocess.STDOUT,
           cwd=taskDir,
@@ -308,22 +310,28 @@ def runWorker() :
         while not procStdOut.at_eof() :
           aLine = await procStdOut.readline()
           aLine = aLine.decode().strip()
-          #print(f'Sending: [{aLine}]')
-          await jsonLog(writer, logParserFunc(taskRequest, aLine))
+          print(f'Sending: [{aLine}]')
+          logMsg = logParserFunc(taskRequest, aLine)
+          print(yaml.dump(logMsg))
+          await jsonLog(writer, logMsg)
         await proc.wait()
         print(f"Finished task for [{workerType}] returncode = {proc.returncode}")
-        await jsonLog(writer, {
+        msgDict = {
           'name'       : taskRequest['taskName'],
           'msg'        : f"Task competed: {proc.returncode}",
           'returncode' : proc.returncode
-        })
+        }
+        print(yaml.dump(msgDict))
+        await jsonLog(writer, msgDict)
       except Exception as err :
-        await jsonLog(writer, {
+        msgDict =  {
           'level'      : 'critical',
           'name'       : taskRequest['taskName'],
           'msg'        : f"Exception({err.__class__.__name__}): {str(err)}",
           'returncode' : 1
-        })
+        }
+        print(yaml.dump(msgDict))
+        await jsonLog(writer, msgDict)
 
     print("Closing the connection")
     writer.close()

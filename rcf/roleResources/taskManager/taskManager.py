@@ -290,6 +290,9 @@ async def handleConnection(reader, writer) :
       return
     workerHost = task['host']
 
+    workerName = taskType
+    if 'workerName' in task : workerName = task['workerName']
+
     await cutelogDebug(f"Got a new worker connection...", name=taskType)
     await cutelogDebug(task, name=taskType)
     if taskType not in workerQueues :
@@ -304,10 +307,11 @@ async def handleConnection(reader, writer) :
       workerQueues[taskType][workerHost] = asyncio.Queue()
     await cutelogDebug(f"Queing {taskType!r} worker on {workerHost}")
     await workerQueues[taskType][workerHost].put({
-      'taskType' : taskType,
-      'addr'     : addr,
-      'reader'   : reader,
-      'writer'   : writer
+      'taskType'   : taskType,
+      'workerName' : workerName,
+      'addr'       : addr,
+      'reader'     : reader,
+      'writer'     : writer
     })
     await cutelogDebug("Waiting for a new connection...")
     return
@@ -374,6 +378,7 @@ async def handleConnection(reader, writer) :
     workerQueues[taskType][leastLoadedHost].task_done()
 
     try :
+      workerName   = taskWorker['workerName']
       workerAddr   = taskWorker['addr']
       workerReader = taskWorker['reader']
       workerWriter = taskWorker['writer']
@@ -398,12 +403,12 @@ async def handleConnection(reader, writer) :
     try :
       data = await workerReader.readuntil()
     except :
-      await cutelogDebug(f"Worker {workerAddr!r} closed connection", name=taskType)
+      await cutelogDebug(f"Worker {workerAddr!r} closed connection", name=f"{taskType}.{workerName}")
       break
 
     message = data.decode()
-    await cutelogDebug(f"Received [{message!r}] from {workerAddr!r}", name=taskType)
-    await cutelogDebug(f"Echoing: [{message!r}] to {addr!r}", name=taskType)
+    await cutelogDebug(f"Received [{message!r}] from {workerAddr!r}", name=f"{taskType}.{workerName}")
+    await cutelogDebug(f"Echoing: [{message!r}] to {addr!r}", name=f"{taskType}.{workerName}")
     await cutelog(message)
     if 'returncode' in message :
       writer.write(data)
