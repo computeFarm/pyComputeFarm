@@ -68,7 +68,7 @@ async def runQuery(queryRequest) :
   if reader and writer :
     await tcpTMSendRequest(queryRequest, reader, writer)
     result = await tcpTMGetResult(reader, writer)
-    await tcpTMCloseConnection
+    await tcpTMCloseConnection(reader, writer)
     print(yaml.dump(result))
 
 def runQueryWorkers() :

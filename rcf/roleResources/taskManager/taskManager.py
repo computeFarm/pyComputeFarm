@@ -83,7 +83,7 @@ async def cutelog(jsonLog) :
   cutelogActionsWriter.write(jsonLog)
   await cutelogActionsWriter.drain()
 
-async def cutelogLog(level, msg) :
+async def cutelogLog(level, msg, name=None) :
   """
   Add the time, name and level to the base cuteLog message provided, and then
   send the message (using `cuteLog`) to the cuteLogActions GUI.
@@ -91,21 +91,22 @@ async def cutelogLog(level, msg) :
   logBody = msg
   if isinstance(msg, str) : logBody = { 'msg' : msg }
   logBody['time'] = time.time()
-  logBody['name'] = 'taskManager'
+  if name : logBody['name'] = f'taskManager.{name}'
+  else    : logBody['name'] = 'taskManager'
   logBody['level'] = level
   await cutelog(logBody)
 
-async def cutelogInfo(msg) :
+async def cutelogInfo(msg, name=None) :
   """
   Send a cuteLog message at the `Info` level.
   """
-  await cutelogLog('info', msg)
+  await cutelogLog('info', msg, name)
 
-async def cutelogDebug(msg) :
+async def cutelogDebug(msg, name=None) :
   """
   Send a cuteLog message at the `Debug` level.
   """
-  await cutelogLog('debug', msg)
+  await cutelogLog('debug', msg, name)
 
 workerQueues = {}
 workerTypes  = {}
@@ -289,9 +290,15 @@ async def handleConnection(reader, writer) :
       return
     workerHost = task['host']
 
-    await cutelogDebug(f"Got a new worker connection...")
+    await cutelogDebug(f"Got a new worker connection...", name=taskType)
+    await cutelogDebug(task, name=taskType)
     if taskType not in workerQueues :
       workerQueues[taskType] = {}
+    if taskType not in workerTypes :
+      workerTypes[taskType] = {}
+    if 'availableTools' in task :
+      for aTool in task['availableTools'] :
+        workerTypes[taskType][aTool] = True
     if workerHost not in workerQueues[taskType] :
       if workerHost not in hostLoads : hostLoads[workerHost] = 1000
       workerQueues[taskType][workerHost] = asyncio.Queue()
@@ -307,7 +314,7 @@ async def handleConnection(reader, writer) :
 
   # ELSE IF task is a query about types of workers... check the worker queue
   if 'type' in task and task['type'] == 'workerQuery' :
-    await cuteLogDebug(f"Got a worker query connection...")
+    await cutelogDebug(f"Got a worker query connection...", name='query')
 
     # collect the host type information (platform, cpuType)
     lHostTypes = {}
@@ -325,7 +332,7 @@ async def handleConnection(reader, writer) :
     for workerType in workerQueues :
       if workerType not in lWorkers : lWorkers[workerType] = True
       if workerType in workerTypes :
-        for aTool in workerTypes[workerType] :
+        for aTool in workerTypes[workerType].keys() :
           if aTool not in lTools : lTools[aTool] = {}
           if workerType not in lTools[aTool] :
             lTools[aTool][workerType] = True
@@ -391,12 +398,12 @@ async def handleConnection(reader, writer) :
     try :
       data = await workerReader.readuntil()
     except :
-      await cutelogDebug(f"Worker {workerAddr!r} closed connection")
+      await cutelogDebug(f"Worker {workerAddr!r} closed connection", name=taskType)
       break
 
     message = data.decode()
-    await cutelogDebug(f"Received [{message!r}] from {workerAddr!r}")
-    await cutelogDebug(f"Echoing: [{message!r}] to {addr!r}")
+    await cutelogDebug(f"Received [{message!r}] from {workerAddr!r}", name=taskType)
+    await cutelogDebug(f"Echoing: [{message!r}] to {addr!r}", name=taskType)
     await cutelog(message)
     if 'returncode' in message :
       writer.write(data)

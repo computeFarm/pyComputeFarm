@@ -28,11 +28,11 @@ start:
   - name: reload systemctl
     cmd: systemctl --user daemon-reload
   - name: start gcc-Workers
-    cmd: systemctl --user start gccX86-Worker.target
+    cmd: systemctl --user start gcc-Worker.target
 
 stop:
   - name: reload systemctl
     cmd: systemctl --user daemon-reload
   - name: stop gcc-Workers
-    cmd: systemctl --user stop gccX86-Worker.target
+    cmd: systemctl --user stop gcc-Worker.target
 

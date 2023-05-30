@@ -27,7 +27,7 @@ async def tcpTMConnection(tmRequest) :
 async def tcpTMSendRequest(tmRequest, reader, writer) :
   # send task request
 
-  writer.write(json.dumps(taskRequest).encode())
+  writer.write(json.dumps(tmRequest).encode())
   await writer.drain()
   writer.write(b"\n")
   await writer.drain()

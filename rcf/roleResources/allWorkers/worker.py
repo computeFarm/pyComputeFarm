@@ -220,10 +220,10 @@ def runWorker() :
     # send task specialty
     print("Sending task description to taskManager")
     writer.write(json.dumps({
-      'type'          : 'worker',
-      'taskType'      : workerType,
-      'host'          : hostName,
-      'avaiableTools' : config['availableTools']
+      'type'           : 'worker',
+      'taskType'       : workerType,
+      'host'           : hostName,
+      'availableTools' : config['availableTools']
     }).encode())
     await writer.drain()
     writer.write(b"\n")
