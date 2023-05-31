@@ -353,7 +353,7 @@ async def handleConnection(reader, writer) :
     return
 
   # ELSE task is a request... get a worker and echo the results
-  await cutelogDebug(task, name="debug.taskRequest")
+  await cutelogDebug({ 'task' : task }, name="debug.taskRequest")
   if 'workers' not in task or len(task['workers']) < 1 :
     await cutelogDebug("new task request without any workers... dropping the connection")
     await cutelogDebug(task)
@@ -380,6 +380,10 @@ async def handleConnection(reader, writer) :
         continue
       potentialWorkerHosts.append(( aTaskType, aWorkerHost ))
 
+  await cutelogDebug({ 
+    'task'        : task,
+    'workerHosts' : potentialWorkerHosts
+  }, name="debug.workerHosts")
   if not potentialWorkerHosts :
     await cutelogDebug(f"No specialist workers or hosts found for this task... dropping the connection")
     await cutelogDebug(task)
@@ -426,18 +430,18 @@ async def handleConnection(reader, writer) :
     except :
       await cutelogDebug(
         f"Worker {workerAddr!r} closed connection",
-        name=f"{leastLoadedTaskType}.{workerName}"
+        name=f"{leastLoadedTaskType}.{workerName}.{leastLoadedHost}"
       )
       break
 
     message = data.decode()
     await cutelogDebug(
       f"Received [{message!r}] from {workerAddr!r}",
-      name=f"{leastLoadedTaskType}.{workerName}"
+      name=f"{leastLoadedTaskType}.{workerName}.{leastLoadedHost}"
     )
     await cutelogDebug(
       f"Echoing: [{message!r}] to {addr!r}",
-      name=f"{leastLoadedTaskType}.{workerName}"
+      name=f"{leastLoadedTaskType}.{workerName}.{leastLoadedHost}"
     )
     await cutelog(message)
     if 'returncode' in message :
