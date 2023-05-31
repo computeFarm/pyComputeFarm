@@ -31,8 +31,8 @@ def popArg(aKey, requestDict, optArgsList) :
   Check the next argument for the value associated with the key `aKey`. If found
   set the taskRequest key `aKey` with the value `aValue`.
   """
-  checkNextArg(aKey, optArgsList)
-  setArg(aKey, sys.argv.pop(0), requestDict)
+  checkNextArg(aKey, requestDict, optArgsList)
+  setArg(aKey, sys.argv.pop(0), requestDict, optArgsList)
 
 def popIntArg(aKey, requestDict, optArgsList) :
   """
@@ -43,7 +43,7 @@ def popIntArg(aKey, requestDict, optArgsList) :
   requestDict[aKey] = int(requestDict[aKey])
 
 #def addMmh3(requestDict, optArgsList) :
-#  checkNextArg('mmh3', optArgsList)
+#  checkNextArg('mmh3', requestDict, optArgsList)
 #  requestDict['mmh3'].append(sys.argv.pop(0))
 
 def setEnv(requestDict, optArgsList) :

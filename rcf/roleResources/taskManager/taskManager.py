@@ -129,8 +129,8 @@ async def handleConnection(reader, writer) :
 
   The JSON messages consists of:
 
-  - taskType  (used by both worker registration and new task requests to choose
-               the correct worker sub-queue)
+  - taskType  (used by worker registration to choose the correct worker
+               sub-queue)
 
   - type      (one of `monitor`, `worker`, `workerQuery`, `taskRequest`)
   
@@ -153,6 +153,8 @@ async def handleConnection(reader, writer) :
   - scale     (monitor messages stream, a scale factor configured for this
                machine)
 
+  - workers   (taskRequest messages, a list of acceptable workers)
+
   - taskName  (taskRequest messages, the name of the requested task for use by
                the cuteLogActions GUI)
 
@@ -165,7 +167,7 @@ async def handleConnection(reader, writer) :
   - dir       (taskRequest messages, the directory in which to run the requested
                command)
 
-  For each JSON task message, both the `taskType` and `type` keys MUST exist.
+  For each JSON task message, the `type` key MUST exist.
 
   For each JSON task message recieved, we deal with the simpler (short lived)
   task messages in the following order:
@@ -181,11 +183,11 @@ async def handleConnection(reader, writer) :
      `hostTypes` is a copy of the `platform` and `cpu` keys in the `hostTypes`
      global.)
 
-  4. New task request (we find an existing worker/connection which matches the
-     requested task, forward the task request onto the worker, and then echo the
-     resulting "stream" of "log" messages back to both the task originator as
-     well as the cuteLogActions GUI. When the worker finishes, we close this
-     connection)
+  4. New task request (we find an existing worker/connection which matches one
+     of the requested workers, forward the task request onto the worker, and
+     then echo the resulting "stream" of "log" messages back to both the task
+     originator as well as the cuteLogActions GUI. When the worker finishes, we
+     close this connection)
 
   ------------------------------------------------------------------------------
 
@@ -203,7 +205,7 @@ async def handleConnection(reader, writer) :
                   latest scaled load average for use when choosing the next
                   worker to be given a task.
 
-  - `hostTypes` : is a dict of dict indexed by `workerPlatform` and `workerCPU`.
+  - `hostTypes` : is a dict of dict indexed by `workerPlatform`-`workerCPU`.
                   Each entry contains a set of known hosts of the appropriate
                   platform and cpu type.
   """
@@ -215,19 +217,6 @@ async def handleConnection(reader, writer) :
   task = {}
   if taskJson :
     task = json.loads(taskJson.decode())
-
-  taskType = None
-  if 'taskType' in task :
-    taskType = task['taskType']
-
-  # ensure we have a usable taskType
-  if not taskType :
-    cutelogDebug("Incorrect task request: missing taskType")
-    writer.write("Incorrect task request: missing taskType".encode())
-    await writer.drain()
-    writer.close()
-    await writer.wait_closed()
-    return
 
   # IF task is a monitor... start recording workloads for this host
   if 'type' in task and task['type'] == 'monitor' :
@@ -241,10 +230,10 @@ async def handleConnection(reader, writer) :
     monitoredHost = task['host']
     mPlatform     = task['platform']
     mCpuType      = task['cpuType']
-    if mPlatform not in hostTypes            : hostTypes[mPlatform] = {}
-    if mCpuType  not in hostTypes[mPlatform] : hostTypes[mPlatform][mCpuType] = {}
-    if monitoredHost not in hostTypes[mPlatform][mCpuType] :
-      hostTypes[mPlatform][mCpuType][monitoredHost] = True
+    thePlatform = f"{mPlatform.lower()}-{mCpuType.lower()}"
+    if thePlatform not in hostTypes : hostTypes[thePlatform] = {}
+    if monitoredHost not in hostTypes[thePlatform] :
+      hostTypes[thePlatform][monitoredHost] = True
     await cutelogDebug(f"Got a new monitor connection from {monitoredHost}...")
     while not reader.at_eof() :
       try :
@@ -263,19 +252,16 @@ async def handleConnection(reader, writer) :
 
     # clean up the hostTypes and hostLoads global variables by removing this
     # monitored host
-    if mPlatform in hostTypes :
-      if mCpuType in hostTypes[mPlatform] :
-        if monitoredHost in hostTypes[mPlatform][mCpuType] :
-          del hostTypes[mPlatform][mCpuType][monitoredHost]
-          if not hostTypes[mPlatform][mCpuType] :
-            del hostTypes[mPlatform][mCpuType]
-            if not hostTypes[mPlatform] :
-              del hostTypes[mPlatform]
+    if thePlatform in hostTypes :
+      if monitoredHost in hostTypes[thePlatform] :
+          del hostTypes[thePlatform][monitoredHost]
+          if not hostTypes[thePlatform] :
+            del hostTypes[thePlatform]
 
     if monitoredHost in hostLoads :
       del hostLoads[monitoredHost]
 
-    cutelogDebug(f"Closing monitor connection ...")
+    await cutelogDebug(f"Closing monitor connection ...")
     writer.close()
     await writer.wait_closed()
     return
@@ -289,6 +275,15 @@ async def handleConnection(reader, writer) :
       await writer.wait_close()
       return
     workerHost = task['host']
+
+    if 'taskType' not in task :
+      await cutelogDebug("new worker without a taskType... dropping the connection")
+      await cutelogDebug(task)
+      writer.close()
+      await writer.wait_closed()
+      return
+
+    taskType = task['taskType']
 
     workerName = taskType
     if 'workerName' in task : workerName = task['workerName']
@@ -323,12 +318,10 @@ async def handleConnection(reader, writer) :
     # collect the host type information (platform, cpuType)
     lHostTypes = {}
     for platformKey, platformValue in hostTypes.items() :
-      for cpuKey, cpuValue in platformValue.items() :
-        if cpuValue :
-          if platformKey not in lHostTypes :
-            lHostTypes[platformKey]         = {}
-          if cpuKey      not in lHostTypes[platformKey] : 
-            lHostTypes[platformKey][cpuKey] = True
+      if platformKey not in lHostTypes : lHostTypes[platformKey] = {}
+      for aHost in platformValue.keys() :
+        for aWorkerType, someHosts in workerQueues.items() :
+          if aHost in someHosts : lHostTypes[platformKey][aWorkerType] = True
 
     # collect information about the current available workers and tools
     lWorkers = {}
@@ -358,24 +351,50 @@ async def handleConnection(reader, writer) :
     return
 
   # ELSE task is a request... get a worker and echo the results
-  if taskType not in workerQueues or len(workerQueues[taskType]) < 1 :
-    await cutelogDebug(f"No specialist worker found for the task type: [{taskType}]")
-    writer.write(
-      f"No specialist worker found for the task type: [{taskType}]".encode()
-    )
-    await writer.drain()
+  await cutelogDebug(task, name="debug.taskRequest")
+  if 'workers' not in task or len(task['workers']) < 1 :
+    await cutelogDebug("new task request without any workers... dropping the connection")
+    await cutelogDebug(task)
+    writer.close()
+    await writer.wait_closed()
+    return
+
+  requiredPlatform = None
+  if 'requiredPlatform' in task :
+    requiredPlatform = task['requiredPlatform']
+  if requiredPlatform and requiredPlatform not in hostTypes :
+    await cutelogDebug(f"No platform found for the task request... dropping the connection")
+    await cutelogDebug(task)
+    writer.close()
+    await writer.wait_closed()
+    return
+
+  potentialWorkerHosts = []
+  for aTaskType in task['workers'] :
+    if aTaskType not in workerQueues or len(workerQueues[aTaskType]) < 1 : 
+      continue
+    for aWorkerHost in workerQueues[aTaskType] :
+      if requiredPlatform and aWorkerHost not in hostTypes[requiredPlatform] :
+        continue
+      potentialWorkerHosts.append(( aTaskType, aWorkerHost ))
+
+  if not potentialWorkerHosts :
+    await cutelogDebug(f"No specialist workers or hosts found for this task... dropping the connection")
+    await cutelogDebug(task)
     writer.close()
     await writer.wait_closed()
     return
 
   while True :
-    workerHosts = list(workerQueues[taskType].keys())
-    leastLoadedHost = workerHosts.pop(0)
-    for aHost in workerHosts :
+    #print(yaml.dump(potentialWorkers))
+    leastLoadedTaskType, leastLoadedHost = potentialWorkerHosts[0]
+    for aPotentialWorkerHost in potentialWorkerHosts :
+      aTaskType, aHost = aPotentialWorkerHost
       if hostLoads[aHost] < hostLoads[leastLoadedHost] :
-        leastLoadedHost = aHost
-    taskWorker = await workerQueues[taskType][leastLoadedHost].get()
-    workerQueues[taskType][leastLoadedHost].task_done()
+        leastLoadedHost     = aHost
+        leaseLoadedTaskType = aTaskType
+    taskWorker = await workerQueues[leastLoadedTaskType][leastLoadedHost].get()
+    workerQueues[leastLoadedTaskType][leastLoadedHost].task_done()
 
     try :
       workerName   = taskWorker['workerName']
@@ -403,12 +422,21 @@ async def handleConnection(reader, writer) :
     try :
       data = await workerReader.readuntil()
     except :
-      await cutelogDebug(f"Worker {workerAddr!r} closed connection", name=f"{taskType}.{workerName}")
+      await cutelogDebug(
+        f"Worker {workerAddr!r} closed connection",
+        name=f"{leastLoadedTaskType}.{workerName}"
+      )
       break
 
     message = data.decode()
-    await cutelogDebug(f"Received [{message!r}] from {workerAddr!r}", name=f"{taskType}.{workerName}")
-    await cutelogDebug(f"Echoing: [{message!r}] to {addr!r}", name=f"{taskType}.{workerName}")
+    await cutelogDebug(
+      f"Received [{message!r}] from {workerAddr!r}",
+      name=f"{leastLoadedTaskType}.{workerName}"
+    )
+    await cutelogDebug(
+      f"Echoing: [{message!r}] to {addr!r}",
+      name=f"{leastLoadedTaskType}.{workerName}"
+    )
     await cutelog(message)
     if 'returncode' in message :
       writer.write(data)

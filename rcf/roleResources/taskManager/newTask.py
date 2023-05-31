@@ -76,6 +76,11 @@ optArgsList.append({
   'fnc' : lambda : setEnv(taskRequest, optArgsList)
 })
 optArgsList.append({
+  'key' : [ '-P', '--platform' ],
+  'msg' : "The required platform-cpu",
+  'fnc' : lambda : popArg('requiredPlatform', taskRequest, optArgsList)
+})
+optArgsList.append({
   'key' : [ '-d', '--dir' ],
   'msg' : "Task directory",
   'fnc' : lambda : popArg('dir', taskRequest, optArgsList)
@@ -129,6 +134,7 @@ def runNewTask() :
 
   print(f"Task name: {taskRequest['taskName']}")
   print(f"Task type: {taskRequest['taskType']}")
+  taskRequest['workers'] = [ taskRequest['taskType'] ]
   if taskRequest['verbose'] :
     print("Task Request:\n---")
     print(yaml.dump(taskRequest))
