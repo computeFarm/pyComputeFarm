@@ -108,10 +108,11 @@ async def cutelogDebug(msg, name=None) :
   """
   await cutelogLog('debug', msg, name)
 
-workerQueues = {}
-workerTypes  = {}
-hostLoads    = {}
-hostTypes    = {}
+workerQueues  = {}
+workerTypes   = {}
+hostLoads     = {}
+hostTypes     = {}
+fileLocations = {}
 
 async def handleConnection(reader, writer) :
   """
@@ -341,7 +342,8 @@ async def handleConnection(reader, writer) :
       'taskType'  : 'workerQuery',
       'hostTypes' : lHostTypes,
       'workers'   : lWorkers,
-      'tools'     : lTools
+      'tools'     : lTools,
+      'files'     : fileLocations
     }).encode())
     await writer.drain()
     writer.write(b"\n")
@@ -537,6 +539,12 @@ def runTaskManager() :
       cutelogActions['host'] = "localhost"
     if 'port' not in cutelogActions :
       cutelogActions['port'] = 19996
+
+  if 'files' in config :
+    if 'orig' in config['files'] :
+      fileLocations['orig'] = config['files']['orig']
+    if 'dest' in config['files'] :
+      fileLocations['dest'] = config['files']['dest']
 
   try :
     asyncio.run(tcpTaskServer(config))

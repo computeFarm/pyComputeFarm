@@ -16,9 +16,9 @@ def tcpTMConnection(tmRequest) :
       tmRequest['host'],
       tmRequest['port']
     ))
-    print("Connected to the taskManager")
+    print(f"Connected to the taskManager on {tmRequest['host']}:{tmRequest['port']}")
   except ConnectionRefusedError as err :
-    print("Could not connect to the taskManager")
+    print(f"Could not connect to the taskManager on {tmRequest['host']}:{tmRequest['port']}")
     return None
   except Exception as err :
     print(f"Exception({err.__class__.__name__}): {str(err)}")
@@ -53,9 +53,9 @@ def tcpTMCloseConnection(tmSocket) :
   tmSocket.shutdown(socket.SHUT_RDWR)
   tmSocket.close()
 
-def tcpTMEchoResults(tmSocket, setWorkerReturnCode) :
-  # echo any results
-
+def tcpTMCollectResults(tmSocket, msgArray) :
+  
+  returnCode = 1
   moreToRead = True
   while moreToRead :
     print("Reading...")
@@ -71,10 +71,11 @@ def tcpTMEchoResults(tmSocket, setWorkerReturnCode) :
      if 'returncode' in aLine :
        workerJson = json.loads(aLine)
        if 'returncode' in workerJson :
-         setWorkerReturnCode(workerJson['returncode'])
+         returnCode = workerJson['returncode']
+         moreToRead = False
        if 'msg' in workerJson :
-         print(workerJson['msg'])
-       moreToRead = False
+        if msgArray : msgArray.append(workerJson['msg'])
+        else        : print(workerJson['msg'])
     else : 
       print("Data is empty!")
       moreToRead = False
