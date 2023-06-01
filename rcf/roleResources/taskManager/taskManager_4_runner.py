@@ -58,6 +58,11 @@ async def tcpTaskServer(config) :
   for s in signals:
     loop.add_signal_handler(s, signalHandler, s.name)
 
+  global taskRequestDoneEvent
+  taskRequestDoneEvent = asyncio.Event() # starts with event cleared
+  # start the taskRequest dispatcher... (and run forever)
+  dispatcherTask = asyncio.create_task(dispatcher())
+
   taskManager = config['taskManager']
   server = await asyncio.start_server(
     handleConnection, taskManager['interface'], taskManager['port']
@@ -69,13 +74,12 @@ async def tcpTaskServer(config) :
 
   async with server :
     await server.serve_forever()
+  dispactherTask.cancel() # once the server has finished... cancel the dispatcher.
 
 def runTaskManager() :
   """
-  Provide a centarl task manager for a compute farm by listening for JSON RPC
+  Provide a central task manager for a compute farm by listening for JSON RPC
   messages on a well known port.
-
- 
   """
 
   for anArg in sys.argv :

@@ -5,7 +5,7 @@
 Description=Start a compute farm work load monitor
 
 [Service]
-ExecStart=python {{ ssh_home }}/.local/pyComputeFarm/bin/monitor.py -h {{ taskManager.host }} -p {{ taskManager.port }}
+ExecStart=python {{ ssh_home }}/.local/pyComputeFarm/bin/monitor.py -h {{ taskManager.host }} -p {{ taskManager.port }} -l {{ monitor.maxLoad }} -s {{ monitor.scale }} -i {{ monitor.interval }}
 Restart=always
 
 [Install]

@@ -3,11 +3,13 @@ Implement the logic to handle the incomming connections to the taskManager's
 tcpTaskServer.
 """
 
-workerQueues  = {}
-workerTypes   = {}
-hostLoads     = {}
-hostTypes     = {}
-fileLocations = {}
+workerQueues         = {}
+workerTypes          = {}
+platformQueues       = {}
+taskRequestDoneEvent = None
+hostLoads            = {}
+hostTypes            = {}
+fileLocations        = {}
 
 async def handleMonitorConnection(task, reader, writer) :
   """
@@ -26,6 +28,8 @@ async def handleMonitorConnection(task, reader, writer) :
   - cpuType   : (initial message) the type of CPU being monitored
                  (`platform.machine().lower()`)
   
+  - maxLoad   : the maximum load allowed for this machine
+
   - wlOne     : work load average over last minute
   - wlFive    : work load average over last five minutes (not currently used)
   - wlFifteen : work load average over last fifteen minutes (not currently used)
@@ -46,9 +50,16 @@ async def handleMonitorConnection(task, reader, writer) :
   mPlatform     = task['platform']
   mCpuType      = task['cpuType']
   thePlatform = f"{mPlatform.lower()}-{mCpuType.lower()}"
+  maxLoad = 1.0
+  if 'maxLoad' in task : maxLoad = task['maxLoad']
+
   if thePlatform not in hostTypes : hostTypes[thePlatform] = {}
+  if thePlatform not in platformQueues : 
+    platformQueues[thePlatform] = asyncio.Queue()
+
   if monitoredHost not in hostTypes[thePlatform] :
-    hostTypes[thePlatform][monitoredHost] = True
+    hostTypes[thePlatform][monitoredHost] = maxLoad
+
   await cutelogDebug(f"Got a new monitor connection from {monitoredHost}...")
   while not reader.at_eof() :
     try :
@@ -139,7 +150,6 @@ async def handleWorkerConnection(task, addr, reader, writer) :
     'reader'     : reader,
     'writer'     : writer
   })
-  await cutelogDebug("Waiting for a new connection...")
 
 async def handleQueryConnection(task, reader, writer) :
   """
@@ -170,6 +180,11 @@ async def handleQueryConnection(task, reader, writer) :
   """
   await cutelogDebug(f"Got a worker query connection...", name='query')
 
+  # collect information about the platformQueues
+  lPlatformQueues = {}
+  for aPlatform, aQueue in platformQueues.items() :
+    lPlatformQueues[aPlatform] = aQueue.empty()
+
   # collect the host type information (platform, cpuType)
   lHostTypes = {}
   for platformKey, platformValue in hostTypes.items() :
@@ -192,18 +207,66 @@ async def handleQueryConnection(task, reader, writer) :
   # send worker information 
   print("Sending worker information to queryWorkers/cfdoit")
   writer.write(json.dumps({
-    'type'      : 'workerQuery',
-    'taskType'  : 'workerQuery',
-    'hostTypes' : lHostTypes,
-    'workers'   : lWorkers,
-    'tools'     : lTools,
-    'files'     : fileLocations
+    'type'                : 'workerQuery',
+    'taskType'            : 'workerQuery',
+    'hostTypes'           : lHostTypes,
+    'workers'             : lWorkers,
+    'tools'               : lTools,
+    'files'               : fileLocations,
+    'platformQueuesEmpty' : lPlatformQueues
   }).encode())
   await writer.drain()
   writer.write(b"\n")
   await writer.drain()
 
-  await cutelogDebug("Waiting for a new connection...")
+async def dispatcher() :
+  """
+  Manages the dispatch of paused taskRequest handlers contained in the
+  platformQueues.
+  
+  Each paused taskRequest handler is waiting on a event contained in the
+  appropriate platformQueue.
+
+  We only dispatch a new taskRequest handler from a given platformQueue when the
+  load on at least one host of the given type drops below its assigned maxLoad.
+  """
+  while True :
+    taskFound = False
+
+    if platformQueues :
+      shuffledPlatforms = list(platformQueues.keys())
+      await cutelogDebug({ 'unShuffledPlatforms' : shuffledPlatforms}, name="dispatcher")
+      random.shuffle(shuffledPlatforms)
+      await cutelogDebug({ 'shuffledPlatforms' : shuffledPlatforms}, name="dispatcher")
+      for aPlatform in shuffledPlatforms :
+        aPlatformQueue = platformQueues[aPlatform]
+        await cutelogDebug(
+          f"checking for taskRequests queued on the {aPlatform} queue",
+          name='dispatcher'
+        )
+        for aHost, aMaxScaledLoad in hostTypes[aPlatform].items() :
+          if hostLoads[aHost] < aMaxScaledLoad :
+            if not aPlatformQueue.empty() :
+              nextTaskEvent = await aPlatformQueue.get()
+              aPlatformQueue.task_done()
+              if not nextTaskEvent.is_set() :
+                nextTaskEvent.set()  # tell this task to start running....
+                taskFound = True
+                await cutelogDebug(
+                  f"found a taskRequest on the {aPlatform} queue",
+                  name='dispatcher'
+                )
+                break  # only start one task per platform durring one scan
+    if not taskFound :
+      # if no tasks found during last scan pause
+      await cutelogDebug(
+        f"waiting for a taskRequest to finish ({type(taskRequestDoneEvent)})",
+        name="dispatcher"
+      )
+      await taskRequestDoneEvent.wait()
+
+      # clear this event for next time....
+      taskRequestDoneEvent.clear()  
 
 async def handleTaskRequestConnection(task, taskJson, addr, reader, writer) :
   """
@@ -235,8 +298,12 @@ async def handleTaskRequestConnection(task, taskJson, addr, reader, writer) :
   - aliases          : a dict of key-value pairs which provides a collection of
                        shell aliases to be used by the actions
 
+  - estimatedLoad    : a (scaled) estimate of the load associated with this
+                       task. This is added to the hostLoad of the host assigned
+                       to this task (default: 0.5)
   """
-  await cutelogDebug({ 'task' : task }, name="debug.taskRequest")
+  await cutelogDebug({ 'task' : task }, name="debug")
+
   if 'workers' not in task or len(task['workers']) < 1 :
     await cutelogDebug("new task request without any workers... dropping the connection")
     await cutelogDebug(task)
@@ -254,6 +321,24 @@ async def handleTaskRequestConnection(task, taskJson, addr, reader, writer) :
     await writer.wait_closed()
     return
 
+  thisTaskEvent = asyncio.Event() # starts with the event cleared
+
+  if requiredPlatform :
+    await cutelogDebug(f"stored task event on {requiredPlatform} queue", name="dispatcher")
+    await platformQueues[requiredPlatform].put(thisTaskEvent)
+  else :
+    # if there is no requiredPlatform... place this task into all queues...
+    for aPlatform, aQueue in platformQueues.items() :
+      await cutelogDebug(f"stored task event on {aPlatform} queue", name="dispatcher")
+      await aQueue.put(thisTaskEvent)
+
+  # let the taskRequest dispatcher to dispatch any new tasks
+  taskRequestDoneEvent.set() 
+
+  # wait for this task to be dispatched...
+  await cutelogDebug(f"waiting for thisTaskEvent ({type(thisTaskEvent)})", name="dispatcher")
+  await thisTaskEvent.wait()
+
   potentialWorkerHosts = []
   for aTaskType in task['workers'] :
     if aTaskType not in workerQueues or len(workerQueues[aTaskType]) < 1 : 
@@ -266,7 +351,8 @@ async def handleTaskRequestConnection(task, taskJson, addr, reader, writer) :
   await cutelogDebug({ 
     'task'        : task,
     'workerHosts' : potentialWorkerHosts
-  }, name="debug.workerHosts")
+  }, name="debug")
+
   if not potentialWorkerHosts :
     await cutelogDebug(f"No specialist workers or hosts found for this task... dropping the connection")
     await cutelogDebug(task)
@@ -305,7 +391,10 @@ async def handleTaskRequestConnection(task, taskJson, addr, reader, writer) :
   # add a small fudge factor to the leastLoadedHost's current load to
   # ensure we don't keep choosing and hence over load it
   #
-  hostLoads[leastLoadedHost] += 0.1
+  estimatedLoad = 0.5
+  if 'estimatedLoad' in task : estimatedLoad = task['estimatedLoad']
+
+  hostLoads[leastLoadedHost] += estimatedLoad
 
   while not workerReader.at_eof() :
     try :
@@ -401,3 +490,6 @@ async def handleConnection(reader, writer) :
     elif task['type'] == 'taskRequest' :
       # ELSE task is a request... get a worker and echo the results
       await handleTaskRequestConnection(task, taskJson, addr, reader, writer)
+      taskRequestDoneEvent.set() # let the taskRequest dispatcher dispatch a new task
+
+  await cutelogDebug("Waiting for a new connection...")

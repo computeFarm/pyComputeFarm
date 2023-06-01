@@ -39,6 +39,7 @@ def runMonitor() :
   tmHost    = 'localhost'
   tmPort    = '8888'
   wScale    = 0.8
+  maxLoad   = 1.0
   rInterval = 60
 
   i = 1
@@ -57,6 +58,9 @@ def runMonitor() :
     elif anArg == '-i' or anArg == '--interval' :
       rInterval = int(sys.argv[i+1])
       i += 1
+    elif anArg == '-l' or anArg == '--load' :
+      maxLoad = float(sys.argv[i+1])
+      i += 1
     elif anArg == '-h' or anArg == '--help' :
       usage()
     i += 1
@@ -64,6 +68,7 @@ def runMonitor() :
   print(f"TaskMaster host: {tmHost}")
   print(f"TaskMaster port: {tmPort}")
   print(f"          Scale: {wScale}")
+  print(f"       Max Load: {maxLoad}")
   print(f"Report interval: {rInterval}")
 
   async def workLoadMonitor(tmHost, thPort, wScale, rInterval) :
@@ -92,7 +97,8 @@ def runMonitor() :
       'taskType' : 'monitor',
       'host'     : hostName,
       'platform' : platform.system().lower(),
-      'cpuType'  : platform.machine().lower()
+      'cpuType'  : platform.machine().lower(),
+      'maxLoad'  : maxLoad
     }).encode())
     writer.write(b"\n")
     await writer.drain()

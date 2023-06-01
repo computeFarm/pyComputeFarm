@@ -232,15 +232,15 @@ def createLocalResourcesFor(aRole, gVars, aHost, aDir, config, secrets, logFile)
   # specific platformCpus to be used by one (combined) more generic worker
   # (see gccWorker).
   #
-  if 'platformCpus' in config :
+  if 'platformCpu' in config :
     if 'platformCpus' in rTasks :
-      for aPlatformCpu in config['platformCpus'] :
-        rVars['aPlatformCpu'] = aPlatformCpu
-        config['aPlatformCpu'] = aPlatformCpu
-        createFilesFor(
-          aRole, rTasks['platformCpus'], rVars,
-          aHost, aDir, config, secrets, logFile
-        )
+      aPlatformCpu = config['platformCpu']
+      rVars['aPlatformCpu']  = aPlatformCpu
+      config['aPlatformCpu'] = aPlatformCpu
+      createFilesFor(
+        aRole, rTasks['platformCpus'], rVars,
+        aHost, aDir, config, secrets, logFile
+      )
 
   if 'workers' in config :
     if aRole in config['workers'] :
