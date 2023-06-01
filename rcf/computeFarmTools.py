@@ -81,6 +81,7 @@ def tcpTMCollectResults(tmSocket, msgArray) :
       moreToRead = False
 
   tcpTMCloseConnection(tmSocket)
+  return returnCode
 
 def compileActionScript(someAliases, someEnvs, someActions) :
   """

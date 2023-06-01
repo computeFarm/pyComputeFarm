@@ -140,19 +140,13 @@ def runNewTask() :
     print(yaml.dump(taskRequest))
     print("---")
 
-  workerReturnCode = []
-  def setWorkerReturnCode(aCode) :
-    workerReturnCode.append(int(aCode))
-    print(yaml.dump(workerReturnCode))
-
   tmSocket = tcpTMConnection(taskRequest)
   if tmSocket :
     if tcpTMSentRequest(taskRequest, tmSocket) :
-      tcpTMEchoResults(tmSocket, setWorkerReturnCode)  
+      workerReturnCode = tcpTMCollectResults(tmSocket, None)  
 
-  if not workerReturnCode : workerReturnCode.append(1)
-  print(f"Return code: {workerReturnCode[0]}")
-  return workerReturnCode[0]
+  print(f"Return code: {workerReturnCode}")
+  return workerReturnCode
 
 if __name__ == "__main__" :
   sys.exit(runNewTask())
