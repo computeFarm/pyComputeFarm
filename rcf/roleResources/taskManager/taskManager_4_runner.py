@@ -58,8 +58,6 @@ async def tcpTaskServer(config) :
   for s in signals:
     loop.add_signal_handler(s, signalHandler, s.name)
 
-  global taskRequestDoneEvent
-  taskRequestDoneEvent = asyncio.Event() # starts with event cleared
   # start the taskRequest dispatcher... (and run forever)
   dispatcherTask = asyncio.create_task(dispatcher())
 

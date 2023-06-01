@@ -1,12 +1,31 @@
 """
 Implement the logic to handle the incomming connections to the taskManager's
 tcpTaskServer.
+
+------------------------------------------------------------------------------
+
+  The task manager, maintains four globals, `workerQueues`, `workerTypes`,
+  `hostLoads` and `hostTypes`.
+
+  - `workerQueues` : is a dict of dicts indexed by `workerType`s and
+                     `workerHost`s. Each entry is a worker waiting for an
+                     appropriate task.
+
+  - `workerTypes`  : is a dict indexed by `workerType`. Each entry is a list of
+                     the tools supported by this `workerType`.
+
+  - `hostLoads`    : is a dict indexed by `workerHost`. Each entry contains the
+                     latest scaled load average for use when choosing the next
+                     worker to be given a task.
+
+  - `hostTypes`    : is a dict of dict indexed by `workerPlatform`-`workerCPU`.
+                     Each entry contains a set of known hosts of the appropriate
+                     platform and cpu type.
 """
 
 workerQueues         = {}
 workerTypes          = {}
 platformQueues       = {}
-taskRequestDoneEvent = None
 hostLoads            = {}
 hostTypes            = {}
 fileLocations        = {}
@@ -210,6 +229,7 @@ async def handleQueryConnection(task, reader, writer) :
     'type'                : 'workerQuery',
     'taskType'            : 'workerQuery',
     'hostTypes'           : lHostTypes,
+    'hostLoads'           : hostLoads,
     'workers'             : lWorkers,
     'tools'               : lTools,
     'files'               : fileLocations,
@@ -235,9 +255,11 @@ async def dispatcher() :
 
     if platformQueues :
       shuffledPlatforms = list(platformQueues.keys())
-      await cutelogDebug({ 'unShuffledPlatforms' : shuffledPlatforms}, name="dispatcher")
       random.shuffle(shuffledPlatforms)
-      await cutelogDebug({ 'shuffledPlatforms' : shuffledPlatforms}, name="dispatcher")
+      await cutelogDebug(
+        { 'shuffledPlatforms' : shuffledPlatforms},
+        name="dispatcher"
+      )
       for aPlatform in shuffledPlatforms :
         aPlatformQueue = platformQueues[aPlatform]
         await cutelogDebug(
@@ -259,14 +281,8 @@ async def dispatcher() :
                 break  # only start one task per platform durring one scan
     if not taskFound :
       # if no tasks found during last scan pause
-      await cutelogDebug(
-        f"waiting for a taskRequest to finish ({type(taskRequestDoneEvent)})",
-        name="dispatcher"
-      )
-      await taskRequestDoneEvent.wait()
-
-      # clear this event for next time....
-      taskRequestDoneEvent.clear()  
+      await cutelogDebug(f"sleeping", name="dispatcher")
+      await asyncio.sleep(1)
 
 async def handleTaskRequestConnection(task, taskJson, addr, reader, writer) :
   """
@@ -331,9 +347,6 @@ async def handleTaskRequestConnection(task, taskJson, addr, reader, writer) :
     for aPlatform, aQueue in platformQueues.items() :
       await cutelogDebug(f"stored task event on {aPlatform} queue", name="dispatcher")
       await aQueue.put(thisTaskEvent)
-
-  # let the taskRequest dispatcher to dispatch any new tasks
-  taskRequestDoneEvent.set() 
 
   # wait for this task to be dispatched...
   await cutelogDebug(f"waiting for thisTaskEvent ({type(thisTaskEvent)})", name="dispatcher")
@@ -443,25 +456,6 @@ async def handleConnection(reader, writer) :
 
     - type      (one of `monitor`, `worker`, `workerQuery`, `taskRequest`)
 
-  ------------------------------------------------------------------------------
-
-  The task manager, maintains four globals, `workerQueues`, `workerTypes`,
-  `hostLoads` and `hostTypes`.
-
-  - `workerQueues` : is a dict of dicts indexed by `workerType`s and
-                     `workerHost`s. Each entry is a worker waiting for an
-                     appropriate task.
-
-  - `workerTypes`  : is a dict indexed by `workerType`. Each entry is a list of
-                     the tools supported by this `workerType`.
-
-  - `hostLoads`    : is a dict indexed by `workerHost`. Each entry contains the
-                     latest scaled load average for use when choosing the next
-                     worker to be given a task.
-
-  - `hostTypes`    : is a dict of dict indexed by `workerPlatform`-`workerCPU`.
-                     Each entry contains a set of known hosts of the appropriate
-                     platform and cpu type.
   """
   addr = writer.get_extra_info('peername')
   await cutelogDebug(f"Handling new connection from {addr!r}")
@@ -490,6 +484,5 @@ async def handleConnection(reader, writer) :
     elif task['type'] == 'taskRequest' :
       # ELSE task is a request... get a worker and echo the results
       await handleTaskRequestConnection(task, taskJson, addr, reader, writer)
-      taskRequestDoneEvent.set() # let the taskRequest dispatcher dispatch a new task
 
   await cutelogDebug("Waiting for a new connection...")
