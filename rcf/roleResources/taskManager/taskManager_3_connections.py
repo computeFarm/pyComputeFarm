@@ -256,16 +256,16 @@ async def dispatcher() :
     if platformQueues :
       shuffledPlatforms = list(platformQueues.keys())
       random.shuffle(shuffledPlatforms)
-      await cutelogDebug(
-        { 'shuffledPlatforms' : shuffledPlatforms},
-        name="dispatcher"
-      )
+      #await cutelogDebug(
+      #  { 'shuffledPlatforms' : shuffledPlatforms},
+      #  name="dispatcher"
+      #)
       for aPlatform in shuffledPlatforms :
         aPlatformQueue = platformQueues[aPlatform]
-        await cutelogDebug(
-          f"checking for taskRequests queued on the {aPlatform} queue",
-          name='dispatcher'
-        )
+        #await cutelogDebug(
+        #  f"checking for taskRequests queued on the {aPlatform} queue",
+        #  name='dispatcher'
+        #)
         for aHost, aMaxScaledLoad in hostTypes[aPlatform].items() :
           if hostLoads[aHost] < aMaxScaledLoad :
             if not aPlatformQueue.empty() :
@@ -275,13 +275,13 @@ async def dispatcher() :
                 nextTaskEvent.set()  # tell this task to start running....
                 taskFound = True
                 await cutelogDebug(
-                  f"found a taskRequest on the {aPlatform} queue",
+                  f"found a taskRequest on the {aPlatform}({aHost}) queue with {hostLoads[aHost]} < {aMaxScaledLoad}",
                   name='dispatcher'
                 )
                 break  # only start one task per platform durring one scan
     if not taskFound :
       # if no tasks found during last scan pause
-      await cutelogDebug(f"sleeping", name="dispatcher")
+      #await cutelogDebug(f"sleeping", name="dispatcher")
       await asyncio.sleep(1)
 
 async def handleTaskRequestConnection(task, taskJson, addr, reader, writer) :
@@ -381,6 +381,10 @@ async def handleTaskRequestConnection(task, taskJson, addr, reader, writer) :
       if hostLoads[aHost] < hostLoads[leastLoadedHost] :
         leastLoadedHost     = aHost
         leaseLoadedTaskType = aTaskType
+    await cutelogDebug(
+      f"assigned task {leastLoadedTaskType} to host {leaseLoadedHost} with current load {hostLoads[leastLoadedHost]}",
+      name='dispatcher'
+    )
     taskWorker = await workerQueues[leastLoadedTaskType][leastLoadedHost].get()
     workerQueues[leastLoadedTaskType][leastLoadedHost].task_done()
 
