@@ -53,6 +53,11 @@ from rcf.config import ( loadConfig, loadTasksFor, mergeVars )
 timeNow = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%s.%f')
 
 def runCommandOnHost(aHost, runCmdPath, sshOpts, config, secrets, logFile, timeOut=30) :
+  """
+  Run one command on a remote host using Python `pexpect` to deal with password prompts.
+  
+  Collect the stdout and stderr output and the exit result.
+  """
   logFile.write(f"running command [{runCmdPath}] on {aHost}\n")
   if timeOut is None : logFile.write("running with no timeout!\n")
   else : logFile.write(f"running with timeOut = {timeOut}\n")
@@ -91,8 +96,22 @@ def runCommandOnHost(aHost, runCmdPath, sshOpts, config, secrets, logFile, timeO
   return runCmd.exitstatus
 
 def mountSshfsOnAHost(aHost, gVars, config, secrets, logFileBase) :
+  """
+  Mount an sshfs directory on the host `aHost`.
+
+  We use ssh/sshfs optimizations based on: 
+
+    https://blog.ja-ke.tech/2019/08/27/nas-performance-sshfs-nfs-smb.html
+
+  and
+
+    https://www.admin-magazine.com/HPC/Articles/Sharing-Data-with-SSHFS
+
+  We use the second links suggested SSHFS OPT1 and should consider SSHFS OPT2
+  (unfortunately the OPT2 requires MTU changes)
+  """
   print(f"Mount sshfs on host {aHost}")
-  runCmdPath = "sshfs -o ssh_command='ssh -o ServerAliveInterval=60 ' -f -d {ssh_user}@{filesHost}:{filesOrig} {filesDest}".format(
+  runCmdPath = "sshfs -o ssh_command=ssh -o Ciphers=aes128-ctr -o cache=yes -o auto_cache -o compression=no -o ServerAliveInterval=60 -f -d {ssh_user}@{filesHost}:{filesOrig} {filesDest}".format(
     ssh_user=config['ssh_user'],
     filesHost=config['files']['host'],
     filesOrig=config['files']['orig'].format_map(gVars),
@@ -104,13 +123,21 @@ def mountSshfsOnAHost(aHost, gVars, config, secrets, logFileBase) :
   print(f"Mounted sshfs on host {aHost} (exit status: {exitStatus})")
 
 def unmountSshfsOnAHost(mountProcess, aHost, gVars, config, secrets, logFileBase) :
+  """
+  Unmount an sshfs directory on the host `aHost`.
+  """
   print(f"Unmount sshfs on host {aHost}")
 
-  runCmdPath = "fusermount -u {filesDest}".format(
+  runCmdPath = "fusermount -z -u {filesDest}".format(
     filesDest=config['files']['dest'].format_map(gVars)
   )
   exitStatus = 0
   with open(str(logFileBase)+'-unmount', "w") as logFile :
+    # REALLY WE NEED TO STOP ALL OF THE WORKERS FIRST!!!
+    # can't beat the old adage.... sync sync and sync again! (FLUSH those caches!)
+    exitStatus = runCommandOnHost(aHost, "sync", "-t", config, secrets, logFile)
+    exitStatus = runCommandOnHost(aHost, "sync", "-t", config, secrets, logFile)
+    exitStatus = runCommandOnHost(aHost, "sync", "-t", config, secrets, logFile)
     exitStatus = runCommandOnHost(aHost, runCmdPath, "-t", config, secrets, logFile)
   print(f"Unmounted sshfs on host {aHost} (exit status: {exitStatus})")
   if mountProcess.is_alive() :
@@ -122,6 +149,10 @@ def unmountSshfsOnAHost(mountProcess, aHost, gVars, config, secrets, logFileBase
       print(f"TERMINATED daemon thread: mounted sshfs on host {aHost}")
 
 def startAHost(aHost, gVars, config, secrets, logFileBase) :
+  """
+  Start the host `aHost` by running the `start_computeFarm` script installed by
+  the rcf setup stage.
+  """
   print(f"Starting host {aHost}")
   runCmdPath = os.path.join(
     "{pcfHome}".format_map(gVars),
@@ -133,6 +164,10 @@ def startAHost(aHost, gVars, config, secrets, logFileBase) :
   print(f"Started host {aHost} (exit status:: {exitStatus})")
 
 def stopAHost(aHost, gVars, config, secrets, logFileBase) :
+  """
+  Stop the host `aHost` by running the `stop_computeFarm` script installed by
+  the rcf setup stage.
+  """
   print(f"Stopping host {aHost}")
   runCmdPath = os.path.join(
     "{pcfHome}".format_map(gVars),
@@ -144,6 +179,9 @@ def stopAHost(aHost, gVars, config, secrets, logFileBase) :
   print(f"Stopped host {aHost} (exit status: {exitStatus})")
 
 def isHostUp(aHost) :
+  """
+  Ping the host `aHost` and return True if the host is "up".
+  """
   pingCmd = pexpect.spawn(f"ping {aHost}")
   pResult = pingCmd.expect_exact([
     " Destination Host Unreachable",
@@ -153,7 +191,19 @@ def isHostUp(aHost) :
   return pResult == 1
 
 def runHosts(someHosts, config, secrets) :
+  """
+  Start all known (and "up") hosts by creating and running:
+    - a sshfs start thread (using `mountSshfsOnAHost`)
+    - a start host thread (using `startAHost`)
+  
+  Then wait for the user to type `stop` at the read prompt.
 
+  The for all known (and "up") hosts create and run:
+    - a sshfs stop thread (using `unmountSshfsOnAHost`)
+    - a stop host thread (using `stopAHost`)
+
+  Then wait for all threads to finish.
+  """
   gConfig = config['globalConfig']
   gTasks  = loadTasksFor()
   gVars   = {}

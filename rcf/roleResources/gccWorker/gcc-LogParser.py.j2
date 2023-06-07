@@ -6,41 +6,21 @@
 
 def logParser(taskRequest, logMsg) :
   return {
-  	'name'  : taskRequest['taskName'],
-  	'level' : 'debug',
-  	'msg'   : logMsg
-  }
-
-"""
-contextErrorRE = re.compile(r'tex error on line (\d+) in file (\S+):')
-errorFound = False
-
-def logParser(taskRequest, logMsg) :
-  global errorFound
-  logBody = {
     'name'  : taskRequest['taskName'],
-    'level' : 'error',
+    'level' : 'debug',
     'msg'   : logMsg
   }
-  if -1 < logMsg.find('error') :
-    errorFound = True
-    logMatch = contextErrorRE.search(logMsg)
-    if logMatch :
-      lineNum = logMatch.group(1)
-      filePath = logMatch.group(2)
-      if 'dir' in taskRequest :
-        logBody['dir'] = taskRequest['dir']
-      logBody['file'] = filePath
-      logBody['line'] = int(lineNum)
-      return logBody
-    else :
-      return logBody
-  elif -1 < logMsg.find('is not found') :
-    logBody['level'] = 'warning'
-    return logBody
-  elif errorFound :
-    if -1 < logMsg.find('>>') :
-      return logBody
-  logBody['level'] = 'info'
+
+contextErrorRE = re.compile(r'tex error on line (\d+) in file (\S+):')
+
+def logParser(taskRequest, logMsg) :
+  errorFound = False
+  logBody = {
+    'name'  : taskRequest['taskName'],
+    'level' : 'debug',
+    'msg'   : logMsg
+  }
+  if -1 < logMsg.find('error') or -1 < logMsg.find('FAILED') :
+    logBody['level'] = 'error'
   return logBody
 """

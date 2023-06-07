@@ -7,28 +7,34 @@ tcpTaskServer.
   The task manager, maintains four globals, `workerQueues`, `workerTypes`,
   `hostLoads` and `hostTypes`.
 
-  - `workerQueues` : is a dict of dicts indexed by `workerType`s and
-                     `workerHost`s. Each entry is a worker waiting for an
-                     appropriate task.
+  - `workerQueues`  : is a dict of dicts indexed by `workerType`s and
+                      `workerHost`s. Each entry is a worker waiting for an
+                      appropriate task.
 
-  - `workerTypes`  : is a dict indexed by `workerType`. Each entry is a list of
-                     the tools supported by this `workerType`.
+  - `workerTypes`   : is a dict indexed by `workerType`. Each entry is a list of
+                      the tools supported by this `workerType`.
 
-  - `hostLoads`    : is a dict indexed by `workerHost`. Each entry contains the
-                     latest scaled load average for use when choosing the next
-                     worker to be given a task.
+  - `hostLoads`     : is a dict indexed by `workerHost`. Each entry contains the
+                      latest scaled load average for use when choosing the next
+                      worker to be given a task.
 
-  - `hostTypes`    : is a dict of dict indexed by `workerPlatform`-`workerCPU`.
-                     Each entry contains a set of known hosts of the appropriate
-                     platform and cpu type.
+  - `hostTypes`     : is a dict of dict indexed by `workerPlatform`-`workerCPU`.
+                      Each entry contains a set of known hosts of the
+                      appropriate platform and cpu type. 
+
+  - 'assignedTasks' : is a dict of currently assigned tasks (indexed by cfdoit
+                      taskNames). Each entry contains the 'state',
+                      'estimatedLoad' and details about which machine and worker
+                      has been assigned to this task.
 """
 
-workerQueues         = {}
-workerTypes          = {}
-platformQueues       = {}
-hostLoads            = {}
-hostTypes            = {}
-fileLocations        = {}
+workerQueues   = {}
+workerTypes    = {}
+platformQueues = {}
+hostLoads      = {}
+hostTypes      = {}
+fileLocations  = {}
+assignedTasks  = {}  
 
 async def handleMonitorConnection(task, reader, writer) :
   """
@@ -233,7 +239,8 @@ async def handleQueryConnection(task, reader, writer) :
     'workers'             : lWorkers,
     'tools'               : lTools,
     'files'               : fileLocations,
-    'platformQueuesEmpty' : lPlatformQueues
+    'platformQueuesEmpty' : lPlatformQueues,
+    'assignedTasks'       : assignedTasks
   }).encode())
   await writer.drain()
   writer.write(b"\n")
@@ -281,7 +288,7 @@ async def dispatcher() :
                 break  # only start one task per platform durring one scan
     if not taskFound :
       # if no tasks found during last scan pause
-      #await cutelogDebug(f"sleeping", name="dispatcher")
+      await cutelogDebug(f"sleeping", name="dispatcher")
       await asyncio.sleep(1)
 
 async def handleTaskRequestConnection(task, taskJson, addr, reader, writer) :
@@ -318,7 +325,9 @@ async def handleTaskRequestConnection(task, taskJson, addr, reader, writer) :
                        task. This is added to the hostLoad of the host assigned
                        to this task (default: 0.5)
   """
-  await cutelogDebug({ 'task' : task }, name="debug")
+  taskName = "unknown"
+  if 'taskName' in task : taskName = task['taskName']
+  await cutelogDebug({ 'msg' : f"new task: {taskName}", 'task' : task }, name="dispatcher")
 
   if 'workers' not in task or len(task['workers']) < 1 :
     await cutelogDebug("new task request without any workers... dropping the connection")
@@ -337,20 +346,30 @@ async def handleTaskRequestConnection(task, taskJson, addr, reader, writer) :
     await writer.wait_closed()
     return
 
+  estimatedLoad = 0.5
+  if 'estimatedLoad' in task : estimatedLoad = task['estimatedLoad']
+
+  assignedTasks[taskName] = { 
+    'state' : 'pending',
+    'estimatedLoad' : estimatedLoad
+  }
+
   thisTaskEvent = asyncio.Event() # starts with the event cleared
 
   if requiredPlatform :
-    await cutelogDebug(f"stored task event on {requiredPlatform} queue", name="dispatcher")
+    await cutelogDebug(f"stored task event for {taskName} on {requiredPlatform} queue", name="dispatcher")
     await platformQueues[requiredPlatform].put(thisTaskEvent)
   else :
     # if there is no requiredPlatform... place this task into all queues...
     for aPlatform, aQueue in platformQueues.items() :
-      await cutelogDebug(f"stored task event on {aPlatform} queue", name="dispatcher")
+      await cutelogDebug(f"stored task event for {taskName} on {aPlatform} queue", name="dispatcher")
       await aQueue.put(thisTaskEvent)
 
+
   # wait for this task to be dispatched...
-  await cutelogDebug(f"waiting for thisTaskEvent ({type(thisTaskEvent)})", name="dispatcher")
+  await cutelogDebug(f"task {taskName} waiting for thisTaskEvent ({type(thisTaskEvent)})", name="dispatcher")
   await thisTaskEvent.wait()
+  await cutelogDebug(f"task {taskName} started", name="dispatcher")
 
   potentialWorkerHosts = []
   for aTaskType in task['workers'] :
@@ -362,27 +381,28 @@ async def handleTaskRequestConnection(task, taskJson, addr, reader, writer) :
       potentialWorkerHosts.append(( aTaskType, aWorkerHost ))
 
   await cutelogDebug({ 
+    'msg'         : taskName,
     'task'        : task,
     'workerHosts' : potentialWorkerHosts
-  }, name="debug")
+  }, name="dispatcher")
 
   if not potentialWorkerHosts :
-    await cutelogDebug(f"No specialist workers or hosts found for this task... dropping the connection")
+    await cutelogDebug(f"No specialist workers or hosts found for this task... dropping the connection", name="dispatcher")
     await cutelogDebug(task)
     writer.close()
     await writer.wait_closed()
     return
 
   while True :
-    #print(yaml.dump(potentialWorkers))
     leastLoadedTaskType, leastLoadedHost = potentialWorkerHosts[0]
+    await cutelogDebug(f"task {taskName} looking for worker ({leastLoadedTaskType}, {leastLoadedHost})", name='dispatcher')
     for aPotentialWorkerHost in potentialWorkerHosts :
       aTaskType, aHost = aPotentialWorkerHost
       if hostLoads[aHost] < hostLoads[leastLoadedHost] :
         leastLoadedHost     = aHost
         leaseLoadedTaskType = aTaskType
     await cutelogDebug(
-      f"assigned task {leastLoadedTaskType} to host {leaseLoadedHost} with current load {hostLoads[leastLoadedHost]}",
+      f"assigned task {taskName} ({leastLoadedTaskType}) to host {leastLoadedHost} with current load {hostLoads[leastLoadedHost]}",
       name='dispatcher'
     )
     taskWorker = await workerQueues[leastLoadedTaskType][leastLoadedHost].get()
@@ -404,6 +424,11 @@ async def handleTaskRequestConnection(task, taskJson, addr, reader, writer) :
       continue
     # We have found a live worker...
     break
+
+  assignedTasks[taskName]['state']      = 'running'
+  assignedTasks[taskName]['worker']     = leastLoadedTaskType
+  assignedTasks[taskName]['workerName'] = workerName
+  assignedTasks[taskName]['host']       = leastLoadedHost
 
   # add a small fudge factor to the leastLoadedHost's current load to
   # ensure we don't keep choosing and hence over load it
@@ -441,6 +466,8 @@ async def handleTaskRequestConnection(task, taskJson, addr, reader, writer) :
   await cutelogDebug(f"Closing the connection to {addr!r}")
   writer.close()
   await writer.wait_closed()
+  await cutelogDebug(f"finished {taskName}", name="dispatcher")
+  del assignedTasks[taskName]
 
 async def handleConnection(reader, writer) :
   """
