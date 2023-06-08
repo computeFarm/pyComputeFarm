@@ -10,13 +10,14 @@ import socket
 import sys
 import yaml
 
-def tcpTMConnection(tmRequest) :
+def tcpTMConnection(tmRequest, verbose) :
   try :
     tmSocket = socket.create_connection((
       tmRequest['host'],
       tmRequest['port']
     ))
-    print(f"Connected to the taskManager on {tmRequest['host']}:{tmRequest['port']}")
+    if verbose :
+      print(f"Connected to the taskManager on {tmRequest['host']}:{tmRequest['port']}")
   except ConnectionRefusedError as err :
     print(f"Could not connect to the taskManager on {tmRequest['host']}:{tmRequest['port']}")
     return None
@@ -25,7 +26,7 @@ def tcpTMConnection(tmRequest) :
     return None
   return tmSocket
 
-def tcpTMSentRequest(tmRequest, tmSocket) :
+def tcpTMSentRequest(tmRequest, tmSocket, verbose) :
   # send task request
   try :
     tmSocket.sendall(json.dumps(tmRequest).encode() + b"\n")
@@ -35,7 +36,7 @@ def tcpTMSentRequest(tmRequest, tmSocket) :
     return False
   return True
 
-def tcpTMGetResult(tmSocket) :
+def tcpTMGetResult(tmSocket, verbose) :
   # read result
   result = {}
   resultJson = None
@@ -48,17 +49,17 @@ def tcpTMGetResult(tmSocket) :
     result = json.loads(resultJson.decode())
   return result
 
-def tcpTMCloseConnection(tmSocket) :
-  print("Closing the connection to the taskManager")
+def tcpTMCloseConnection(tmSocket, verbose) :
+  if verbose : print("Closing the connection to the taskManager")
   tmSocket.shutdown(socket.SHUT_RDWR)
   tmSocket.close()
 
-def tcpTMCollectResults(tmSocket, msgArray) :
+def tcpTMCollectResults(tmSocket, msgArray, verbose) :
   
   returnCode = 1
   moreToRead = True
   while moreToRead :
-    print("Reading...")
+    if verbose : print("Reading...")
     data = None
     try : 
       data = tmSocket.recv(4096)
@@ -80,7 +81,7 @@ def tcpTMCollectResults(tmSocket, msgArray) :
       print("Data is empty!")
       moreToRead = False
 
-  tcpTMCloseConnection(tmSocket)
+  tcpTMCloseConnection(tmSocket, verbose)
   return returnCode
 
 def compileActionScript(someAliases, someEnvs, someActions) :

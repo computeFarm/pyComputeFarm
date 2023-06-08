@@ -239,9 +239,12 @@ def runHosts(someHosts, config, secrets) :
 
   for aProcess in mountProcesses : aProcess.start()
   for aThread  in startThreads   : aThread.start()
-  while True :
-    response = input("Type 'stop' to stop the compute farm: ")
-    if response == 'stop' : break
+  try :
+    while True :
+      response = input("Type 'stop' to stop the compute farm: ")
+      if response == 'stop' : break
+  except KeyboardInterrupt :
+    pass
   for aThread  in stopThreads    : aThread.start()
   for aThread  in unmountThreads : aThread.start()
 

@@ -135,15 +135,17 @@ def runNewTask() :
   print(f"Task name: {taskRequest['taskName']}")
   print(f"Task type: {taskRequest['taskType']}")
   taskRequest['workers'] = [ taskRequest['taskType'] ]
-  if taskRequest['verbose'] :
+  verbose = False
+  if 'verbose' in taskRequest : verbose = taskRequest['verbose']
+  if verbose :
     print("Task Request:\n---")
     print(yaml.dump(taskRequest))
     print("---")
 
-  tmSocket = tcpTMConnection(taskRequest)
+  tmSocket = tcpTMConnection(taskRequest, verbose)
   if tmSocket :
-    if tcpTMSentRequest(taskRequest, tmSocket) :
-      workerReturnCode = tcpTMCollectResults(tmSocket, None)  
+    if tcpTMSentRequest(taskRequest, tmSocket, verbose) :
+      workerReturnCode = tcpTMCollectResults(tmSocket, None, verbose)  
 
   print(f"Return code: {workerReturnCode}")
   return workerReturnCode

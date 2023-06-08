@@ -18,6 +18,10 @@ tcpTaskServer.
                       latest scaled load average for use when choosing the next
                       worker to be given a task.
 
+  - `hostData`      : is a dict indexed by `workerHost`. Each entry is a dict
+                      containing the latest information obtained from the
+                      monitor process.
+
   - `hostTypes`     : is a dict of dict indexed by `workerPlatform`-`workerCPU`.
                       Each entry contains a set of known hosts of the
                       appropriate platform and cpu type. 
@@ -32,6 +36,7 @@ workerQueues   = {}
 workerTypes    = {}
 platformQueues = {}
 hostLoads      = {}
+hostData       = {}
 hostTypes      = {}
 fileLocations  = {}
 assignedTasks  = {}  
@@ -75,7 +80,7 @@ async def handleMonitorConnection(task, reader, writer) :
   mPlatform     = task['platform']
   mCpuType      = task['cpuType']
   thePlatform = f"{mPlatform.lower()}-{mCpuType.lower()}"
-  maxLoad = 1.0
+  maxLoad = 2.0
   if 'maxLoad' in task : maxLoad = task['maxLoad']
 
   if thePlatform not in hostTypes : hostTypes[thePlatform] = {}
@@ -100,6 +105,17 @@ async def handleMonitorConnection(task, reader, writer) :
     jsonData['scaled'] = scaled
     await cutelog(jsonData)
     hostLoads[monitoredHost] = scaled
+    hostData[monitoredHost] = {
+      'numCpus'   : jsonData['numCpus'],
+      'maxLoad'   : maxLoad,
+      'platform'  : mPlatform,
+      'cpuType'   : mCpuType,
+      'scale'     : jsonData['scale'],
+      'wlScaled'  : scaled,
+      'wlOne'     : jsonData['wlOne'],
+      'wlFive'    : jsonData['wlFive'],
+      'wlFifteen' : jsonData['wlFifteen']
+    }
 
   # clean up the hostTypes and hostLoads global variables by removing this
   # monitored host
@@ -236,6 +252,7 @@ async def handleQueryConnection(task, reader, writer) :
     'taskType'            : 'workerQuery',
     'hostTypes'           : lHostTypes,
     'hostLoads'           : hostLoads,
+    'hostData'            : hostData,
     'workers'             : lWorkers,
     'tools'               : lTools,
     'files'               : fileLocations,
